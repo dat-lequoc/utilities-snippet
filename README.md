@@ -23,3 +23,9 @@ git init
 git lfs install   
 git clone <https://huggingface.co/meta-llama/Llama-2-7b-chat-hf>
 ```
+#Bash Utilities
+---------------
+```
+# storage check
+du -sh
+```

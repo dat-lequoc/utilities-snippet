@@ -29,3 +29,12 @@ git clone <https://huggingface.co/meta-llama/Llama-2-7b-chat-hf>
 # storage check
 du -sh
 ```
+
+# SSH
+-----------------
+It is required that your private key files are NOT accessible by others.
+
+```
+cp .ssh to ~/.ssh
+chmod 600
+```

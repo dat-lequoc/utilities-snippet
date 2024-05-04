@@ -38,3 +38,29 @@ It is required that your private key files are NOT accessible by others.
 cp .ssh to ~/.ssh
 chmod 600
 ```
+
+# SSH - Auto install Vscode extension Remote
+--------------------------------------------
+https://stackoverflow.com/questions/70380724/vscode-remote-ssh-how-to-automatically-install-extensions
+```
+PS C:\Users\quocd> code --list-extensions
+```
+
+```
+    "remote.SSH.defaultExtensions": [
+        "github.copilot",
+        "github.copilot-chat",
+        "ms-python.debugpy",
+        "ms-python.python",
+        "ms-python.vscode-pylance",
+        "ms-toolsai.jupyter",
+        "ms-toolsai.jupyter-keymap",
+        "ms-toolsai.jupyter-renderers",
+        "ms-toolsai.vscode-jupyter-cell-tags",
+        "ms-toolsai.vscode-jupyter-slideshow",
+        "vscodevim.vim",
+    ],
+```
+
+
+

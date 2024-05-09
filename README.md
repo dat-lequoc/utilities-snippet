@@ -62,5 +62,13 @@ PS C:\Users\quocd> code --list-extensions
     ],
 ```
 
+# Newly installed Windows
+-------------------------
+```
+winget install foxit 
+winget install dropbox.dropbox 
+winget install vim.vim
+winget install git.git
+```
 
 

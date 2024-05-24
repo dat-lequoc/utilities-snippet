@@ -1,6 +1,25 @@
 # utilities-snippet
 random snippets
 
+# Find path to a python library
+-------------------------
+```python
+import sys
+
+# First, ensure the library is available (you can replace 'numpy' with the library you're interested in)
+library_name = 'langchain_experimental.tabular_synthetic_data.base'
+
+if library_name in sys.modules:
+    # If the library is already imported, find its path
+    print(sys.modules[library_name].__file__)
+else:
+    # If not imported, import it and then find its path
+    import importlib
+    library = importlib.import_module(library_name)
+    print(library.__file__)
+```
+
+
 # Google Drive download:
 -----------------------
 1. Curl Wget Extension: https://chromewebstore.google.com/detail/curlwget/dgcfkhmmpcmkikfmonjcalnjcmjcjjdn

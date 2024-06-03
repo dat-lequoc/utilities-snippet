@@ -90,4 +90,29 @@ winget install vim.vim
 winget install git.git
 ```
 
+# WSL fix bugs
+--------------
+```
+Installing, this may take a few minutes...
+WslRegisterDistribution failed with error: 0x800701bc
+Error: 0x800701bc WSL 2 requires an update to its kernel component. For information please visit https://aka.ms/wsl2kernel
+
+Press any key to continue...
+```
+1. Search : Windows features ON/OFF
+2. Enable VM, WSL
+3. Restart
+4. wsl.exe --update
+5. Open Ubuntu WSL again => good
+
+
+
+
+
+
+
+
+
+
+
 

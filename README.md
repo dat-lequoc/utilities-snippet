@@ -104,7 +104,11 @@ Press any key to continue...
 3. Restart
 4. wsl.exe --update
 5. Open Ubuntu WSL again => good
+6.
 
+```
+sudo apt-get update && sudo apt-get upgrade
+```
 
 
 

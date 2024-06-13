@@ -88,7 +88,7 @@ App to install :
 - Driver Booster (search serail key on youtube comment, don't download patch -> 
  virus)
 - Buy a good Mouse (important for productivity)
-- Wox (quick, custom search)
+- Wox (quick, custom search) https://www.youtube.com/watch?v=USFf2CCJEMg&ab_channel=TobieBi%E1%BA%BFtTu%E1%BB%91t
 - Install WSL Ubuntu (Microsoft Store)
 - Obsidian
 

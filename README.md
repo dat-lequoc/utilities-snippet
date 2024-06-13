@@ -83,6 +83,14 @@ PS C:\Users\quocd> code --list-extensions
 
 # Newly installed Windows
 -------------------------
+App to install :
+- Driver Booster (search serail key on youtube comment, don't download patch -> 
+ virus)
+- Buy a good Mouse (important for productivity)
+- Wox (quick, custom search)
+- Install WSL Ubuntu (Microsoft Store)
+
+Use Winget to install software :
 ```
 winget install foxit 
 winget install dropbox.dropbox 

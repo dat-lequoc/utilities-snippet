@@ -3,7 +3,7 @@ random snippets
 
 # Find path to a python library
 -------------------------
-```python
+```python 
 import sys
 
 # First, ensure the library is available (you can replace 'numpy' with the library you're interested in)
@@ -90,6 +90,7 @@ App to install :
 - Buy a good Mouse (important for productivity)
 - Wox (quick, custom search)
 - Install WSL Ubuntu (Microsoft Store)
+- Obsidian
 
 **Good extensions**:
 - Tab suspender (multi-tabs RAM optimal) 

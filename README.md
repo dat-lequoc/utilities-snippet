@@ -84,6 +84,7 @@ PS C:\Users\quocd> code --list-extensions
 # Newly installed Windows
 -------------------------
 App to install :
+- Use Edge instead of Chrome
 - Driver Booster (search serail key on youtube comment, don't download patch -> 
  virus)
 - Buy a good Mouse (important for productivity)

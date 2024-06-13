@@ -91,7 +91,15 @@ App to install :
 - Wox (quick, custom search)
 - Install WSL Ubuntu (Microsoft Store)
 
-Use Winget to install software :
+**Good extensions**:
+- Tab suspender (multi-tabs RAM optimal) 
+- Winscribe (VPN)
+- Dark reader
+- Ads block
+- Youtube Adblock
+- Edge Translate
+
+**Use Winget to install software :**  
 ```
 winget install foxit 
 winget install dropbox.dropbox 

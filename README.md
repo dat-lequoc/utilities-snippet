@@ -108,6 +108,12 @@ winget install vim.vim
 winget install git.git
 ```
 
+**Activate script running .ps1**
+(Powershell admin)
+```
+set-executionpolicy RemoteSigned
+```
+
 # WSL fix bugs
 --------------
 ```

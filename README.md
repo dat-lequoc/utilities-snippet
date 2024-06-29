@@ -128,6 +128,12 @@ Press any key to continue...
 sudo apt-get update && sudo apt-get upgrade
 ```
 
+# WSL newly installed
+---------------------
+```
+sudo apt-get update & sudo apt-get upgrade -y
+sudo apt install nodejs npm -y
+```
 
 
 

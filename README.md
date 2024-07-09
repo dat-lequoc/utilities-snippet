@@ -1,6 +1,20 @@
 # utilities-snippet
 random snippets
 
+# Powershell shortcut alias
+---------------------------
+Create : 
+```
+function Run-UnfoldScript {
+    python C:\Users\quocd\Coding\unfold_claude\script.py
+}
+
+New-Alias -Name unfold -Value Run-UnfoldScript
+```
+Delete:
+```
+Remove-Item -Path Alias:unfold
+```
 # Find path to a python library
 -------------------------
 ```python 

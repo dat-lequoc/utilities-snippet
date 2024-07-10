@@ -3,7 +3,12 @@ random snippets
 
 # Powershell shortcut alias
 ---------------------------
-Create : 
+Open Admin Powershell.
+Create PROFILE:
+```
+code $PROFILE
+```
+Copy & Paste this -> then save: 
 ```
 function Run-UnfoldScript {
     python C:\Users\quocd\Coding\unfold_claude\script.py
@@ -11,7 +16,17 @@ function Run-UnfoldScript {
 
 New-Alias -Name unfold -Value Run-UnfoldScript
 ```
-Delete:
+Then,
+```
+. $PROFILE
+```
+Enable running script : 
+```
+Set-ExecutionPolicy RemoteSigned
+```
+
+
+_*Option Delete:*_
 ```
 Remove-Item -Path Alias:unfold
 ```

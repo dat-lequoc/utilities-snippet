@@ -1,6 +1,12 @@
 # utilities-snippet
 random snippets
 
+# Git snippets
+--------------
+```
+git config --global credential.helper store
+```
+
 # Powershell shortcut alias
 ---------------------------
 Open Admin Powershell.

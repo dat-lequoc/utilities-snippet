@@ -1,6 +1,11 @@
 # utilities-snippet
 random snippets
 
+# Windows Shortcut
+------------------
+**Screenshorts**:
+- Greenshot : Last region -> Shift + PrtScn
+
 # Git snippets
 --------------
 ```

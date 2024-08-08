@@ -11,7 +11,7 @@ function highlightSelection() {
     if (selectedText.length > 0) {
       let span = document.createElement('span');
       span.style.backgroundColor = 'yellow';
-      span.textContent = `*${selectedText}*`;
+      span.textContent = `**${selectedText}** `;
 
       range.deleteContents();
       range.insertNode(span);
@@ -21,10 +21,34 @@ function highlightSelection() {
   }
 }
 
+function extractMainContent() {
+  // Common selectors for main content
+  const contentSelectors = [
+    'article',
+    '[role="main"]',
+    '.main-content',
+    '#main-content',
+    '.post-content',
+    '.entry-content',
+    '.article-content',
+    '.content-area'
+  ];
+
+  for (let selector of contentSelectors) {
+    const element = document.querySelector(selector);
+    if (element) {
+      return element.innerText;
+    }
+  }
+
+  // If no matching element found, fall back to body text
+  return document.body.innerText;
+}
+
 function copyAllText() {
-  const bodyText = document.body.innerText;
+  const mainContent = extractMainContent();
   const el = document.createElement('textarea');
-  el.value = bodyText;
+  el.value = mainContent;
   el.setAttribute('readonly', '');
   el.style.position = 'absolute';
   el.style.left = '-9999px';

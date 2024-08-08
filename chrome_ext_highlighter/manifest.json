@@ -1,13 +1,20 @@
 {
   "manifest_version": 3,
   "name": "Word Highlighter",
-  "version": "1.3",
+  "version": "1.4",
   "description": "Highlight selected words, add asterisks around them, and copy text with or without instructions.",
   "permissions": [
     "activeTab",
     "storage",
-    "clipboardWrite"
+    "scripting"
   ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_icon": "extension.png"
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
   "content_scripts": [
     {
       "matches": [
@@ -18,12 +25,13 @@
       ]
     }
   ],
-  "action": {
-    "default_popup": "popup.html",
-    "default_icon": "extension.png"
-  },
-  "background": {
-    "service_worker": "background.js"
+  "commands": {
+    "toggle-highlighter": {
+      "suggested_key": {
+        "default": "Ctrl+Alt+H"
+      },
+      "description": "Toggle highlighter on/off"
+    }
   },
   "web_accessible_resources": [
     {

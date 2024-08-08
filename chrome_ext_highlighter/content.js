@@ -105,7 +105,7 @@ function showNotification(message) {
 
 document.addEventListener('mouseup', highlightSelection);
 
-// Listen for messages from the popup
+// Listen for messages from the popup or background script
 chrome.runtime.onMessage.addListener(function (request, sender, sendResponse) {
   if (request.action === "toggleHighlighter") {
     highlighterEnabled = request.enabled;

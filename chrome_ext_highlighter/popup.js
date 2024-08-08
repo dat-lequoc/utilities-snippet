@@ -20,7 +20,15 @@ document.addEventListener('DOMContentLoaded', function () {
     // Handle copy button click
     copyButton.addEventListener('click', function () {
         chrome.tabs.query({ active: true, currentWindow: true }, function (tabs) {
-            chrome.tabs.sendMessage(tabs[0].id, { action: "copyAllText" });
+            chrome.tabs.sendMessage(tabs[0].id, { action: "copyAllText" }, function (response) {
+                if (response && response.success) {
+                    // Close the popup
+                    window.close();
+
+                    // Show a notification
+                    chrome.tabs.sendMessage(tabs[0].id, { action: "showNotification", message: "Text copied successfully!" });
+                }
+            });
         });
     });
 });

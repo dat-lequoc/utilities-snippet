@@ -56,6 +56,26 @@ function copyAllText() {
   el.select();
   document.execCommand('copy');
   document.body.removeChild(el);
+  return true;
+}
+
+function showNotification(message) {
+  const notification = document.createElement('div');
+  notification.textContent = message;
+  notification.style.cssText = `
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    background-color: #4CAF50;
+    color: white;
+    padding: 15px;
+    border-radius: 5px;
+    z-index: 9999;
+  `;
+  document.body.appendChild(notification);
+  setTimeout(() => {
+    notification.remove();
+  }, 3000);
 }
 
 document.addEventListener('mouseup', highlightSelection);
@@ -65,8 +85,12 @@ chrome.runtime.onMessage.addListener(function (request, sender, sendResponse) {
   if (request.action === "toggleHighlighter") {
     highlighterEnabled = request.enabled;
   } else if (request.action === "copyAllText") {
-    copyAllText();
+    const success = copyAllText();
+    sendResponse({ success: success });
+  } else if (request.action === "showNotification") {
+    showNotification(request.message);
   }
+  return true;
 });
 
 // Load the initial state

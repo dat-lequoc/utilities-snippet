@@ -1,0 +1,6 @@
+Instructions for Claude:
+
+Please analyze the following text and provide a summary of its main points. Additionally, identify any key themes, arguments, or insights presented in the content. If applicable, offer your thoughts on the strengths and weaknesses of the arguments made.
+
+---
+

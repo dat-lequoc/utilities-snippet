@@ -59,19 +59,42 @@ function copyAllText() {
   return true;
 }
 
+function copyWithInstructions() {
+  fetch(chrome.runtime.getURL('instructions_claude.txt'))
+    .then(response => response.text())
+    .then(instructions => {
+      const mainContent = extractMainContent();
+      const textToCopy = `${instructions}\n\n${mainContent}`;
+      const el = document.createElement('textarea');
+      el.value = textToCopy;
+      el.setAttribute('readonly', '');
+      el.style.position = 'absolute';
+      el.style.left = '-9999px';
+      document.body.appendChild(el);
+      el.select();
+      document.execCommand('copy');
+      document.body.removeChild(el);
+      return true;
+    })
+    .catch(error => {
+      console.error('Error reading instructions file:', error);
+      return false;
+    });
+}
+
 function showNotification(message) {
   const notification = document.createElement('div');
   notification.textContent = message;
   notification.style.cssText = `
-    position: fixed;
-    top: 20px;
-    right: 20px;
-    background-color: #4CAF50;
-    color: white;
-    padding: 15px;
-    border-radius: 5px;
-    z-index: 9999;
-  `;
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        background-color: #4CAF50;
+        color: white;
+        padding: 15px;
+        border-radius: 5px;
+        z-index: 9999;
+    `;
   document.body.appendChild(notification);
   setTimeout(() => {
     notification.remove();
@@ -87,6 +110,11 @@ chrome.runtime.onMessage.addListener(function (request, sender, sendResponse) {
   } else if (request.action === "copyAllText") {
     const success = copyAllText();
     sendResponse({ success: success });
+  } else if (request.action === "copyWithInstructions") {
+    copyWithInstructions().then(success => {
+      sendResponse({ success: success });
+    });
+    return true; // Indicates that the response is asynchronous
   } else if (request.action === "showNotification") {
     showNotification(request.message);
   }

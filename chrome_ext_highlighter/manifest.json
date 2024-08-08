@@ -4,7 +4,8 @@
   "version": "1.0",
   "description": "Highlight selected words and add asterisks around them.",
   "permissions": [
-    "activeTab"
+    "activeTab",
+    "storage"
   ],
   "content_scripts": [
     {

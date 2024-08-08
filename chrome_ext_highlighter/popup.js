@@ -37,6 +37,9 @@ document.addEventListener('DOMContentLoaded', function () {
 
                     // Show a notification
                     chrome.tabs.sendMessage(tabs[0].id, { action: "showNotification", message: successMessage });
+                } else {
+                    // Show an error notification
+                    chrome.tabs.sendMessage(tabs[0].id, { action: "showNotification", message: "Error: Copy action failed" });
                 }
             });
         });

@@ -60,26 +60,28 @@ function copyAllText() {
 }
 
 function copyWithInstructions() {
-  fetch(chrome.runtime.getURL('instructions_claude.txt'))
-    .then(response => response.text())
-    .then(instructions => {
-      const mainContent = extractMainContent();
-      const textToCopy = `${instructions}\n\n${mainContent}`;
-      const el = document.createElement('textarea');
-      el.value = textToCopy;
-      el.setAttribute('readonly', '');
-      el.style.position = 'absolute';
-      el.style.left = '-9999px';
-      document.body.appendChild(el);
-      el.select();
-      document.execCommand('copy');
-      document.body.removeChild(el);
-      return true;
-    })
-    .catch(error => {
-      console.error('Error reading instructions file:', error);
-      return false;
-    });
+  return new Promise((resolve) => {
+    fetch(chrome.runtime.getURL('instructions_claude.txt'))
+      .then(response => response.text())
+      .then(instructions => {
+        const mainContent = extractMainContent();
+        const textToCopy = `${instructions}\n\n${mainContent}`;
+        const el = document.createElement('textarea');
+        el.value = textToCopy;
+        el.setAttribute('readonly', '');
+        el.style.position = 'absolute';
+        el.style.left = '-9999px';
+        document.body.appendChild(el);
+        el.select();
+        document.execCommand('copy');
+        document.body.removeChild(el);
+        resolve(true);
+      })
+      .catch(error => {
+        console.error('Error reading instructions file:', error);
+        resolve(false);
+      });
+  });
 }
 
 function showNotification(message) {
@@ -107,6 +109,7 @@ document.addEventListener('mouseup', highlightSelection);
 chrome.runtime.onMessage.addListener(function (request, sender, sendResponse) {
   if (request.action === "toggleHighlighter") {
     highlighterEnabled = request.enabled;
+    sendResponse({ success: true });
   } else if (request.action === "copyAllText") {
     const success = copyAllText();
     sendResponse({ success: success });
@@ -117,6 +120,7 @@ chrome.runtime.onMessage.addListener(function (request, sender, sendResponse) {
     return true; // Indicates that the response is asynchronous
   } else if (request.action === "showNotification") {
     showNotification(request.message);
+    sendResponse({ success: true });
   }
   return true;
 });

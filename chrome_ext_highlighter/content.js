@@ -1,4 +1,4 @@
-let highlighterEnabled = true;
+let highlighterEnabled = false;
 
 function highlightSelection() {
   if (!highlighterEnabled) return;
@@ -21,16 +21,31 @@ function highlightSelection() {
   }
 }
 
+function copyAllText() {
+  const bodyText = document.body.innerText;
+  const el = document.createElement('textarea');
+  el.value = bodyText;
+  el.setAttribute('readonly', '');
+  el.style.position = 'absolute';
+  el.style.left = '-9999px';
+  document.body.appendChild(el);
+  el.select();
+  document.execCommand('copy');
+  document.body.removeChild(el);
+}
+
 document.addEventListener('mouseup', highlightSelection);
 
 // Listen for messages from the popup
 chrome.runtime.onMessage.addListener(function (request, sender, sendResponse) {
   if (request.action === "toggleHighlighter") {
     highlighterEnabled = request.enabled;
+  } else if (request.action === "copyAllText") {
+    copyAllText();
   }
 });
 
 // Load the initial state
 chrome.storage.sync.get('highlighterEnabled', function (data) {
-  highlighterEnabled = data.highlighterEnabled !== false;
+  highlighterEnabled = data.highlighterEnabled === true;
 });

@@ -1,0 +1,23 @@
+{
+  "manifest_version": 3,
+  "name": "Word Highlighter",
+  "version": "1.0",
+  "description": "Highlight selected words and add asterisks around them.",
+  "permissions": [
+    "activeTab"
+  ],
+  "content_scripts": [
+    {
+      "matches": [
+        "<all_urls>"
+      ],
+      "js": [
+        "content.js"
+      ]
+    }
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_icon": "extension.png"
+  }
+}

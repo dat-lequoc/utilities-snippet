@@ -220,8 +220,34 @@ curl -L http://get.oh-my.fish | fish
 omf install pure
 ```
 
+- Change cursor to Box:
+![image](https://github.com/user-attachments/assets/d1990e5c-e131-4416-828b-4fad959c9fd2)
+
 Final step: restart the WSL
 
+# Vim Configuration
+-------------------
+1. Install `:PlugInstall`:
+```
+sudo apt  install cmake -y
+curl -fLo ~/.vim/autoload/plug.vim --create-dirs \
+    https://raw.githubusercontent.com/junegunn/vim-plug/master/plug.vim
+```
+2. Open config .vimrc , paste the content of this file to it
+```
+vim ~/.vimrc
+```
+[https://github.com/quocdat-le-insacvl/mydotfiles/blob/master/.vimrc](https://github.com/quocdat-le-insacvl/mydotfiles/blob/master/.vimrc)
+
+3. Type in (in vim),
+Make changes
+```
+:source $MYVIMRC
+```
+Install
+```
+:PlugInstall
+```
 
 
 

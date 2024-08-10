@@ -178,13 +178,76 @@ sudo apt-get update && sudo apt-get upgrade
 ---------------------
 ```
 sudo apt-get update & sudo apt-get upgrade -y
-sudo apt install nodejs npm -y
+#sudo apt install nodejs npm -y
+cd
+git clone https://github.com/karlin/mintty-colors-solarized.git
+mv mintty-colors-solarized/ .mintty-colors-solarized/
+wget https://raw.githubusercontent.com/seebi/dircolors-solarized/master/dircolors.256dark
+mv dircolors.256dark .dir_colors
+```
+(Remember to Enter for the next command)
+```
+sudo apt-add-repository ppa:fish-shell/release-2
+```
+```
+sudo apt-get update
+sudo apt-get install -y fish
+
+cat << 'EOF' >> ~/.bashrc
+
+# Launch Fish
+if [ -t 1 ]; then
+  exec fish
+fi
+
+EOF
+
+cat << 'EOF' >> ~/.config/fish/conf.d/omf.fish
+
+# Set up colors
+source ~/.mintty-colors-solarized/mintty-solarized-light.sh
+eval (dircolors -c ~/.dir_colors | sed 's/>&\/dev\/null$//')
+
+# Aliases
+alias night "source ~/.mintty-colors-solarized/mintty-solarized-dark.sh"
+alias day "source ~/.mintty-colors-solarized/mintty-solarized-light.sh"
+EOF
 ```
 
+```
+curl -L http://get.oh-my.fish | fish
 
+omf install pure
+```
 
+- Change cursor to Box:
+![image](https://github.com/user-attachments/assets/d1990e5c-e131-4416-828b-4fad959c9fd2)
 
+Final step: restart the WSL
 
+# Vim Configuration
+-------------------
+1. Install `:PlugInstall`:
+```
+sudo apt  install cmake -y
+curl -fLo ~/.vim/autoload/plug.vim --create-dirs \
+    https://raw.githubusercontent.com/junegunn/vim-plug/master/plug.vim
+```
+2. Open config .vimrc , paste the content of this file to it
+```
+vim ~/.vimrc
+```
+[https://github.com/quocdat-le-insacvl/mydotfiles/blob/master/.vimrc](https://github.com/quocdat-le-insacvl/mydotfiles/blob/master/.vimrc)
+
+3. Type in (in vim),
+Make changes
+```
+:source $MYVIMRC
+```
+Install
+```
+:PlugInstall
+```
 
 
 

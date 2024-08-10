@@ -273,10 +273,13 @@ echo "deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesource.co
 sudo apt install mono-complete golang nodejs openjdk-17-jdk openjdk-17-jre npm -y
 
 ```
+
 ```
 cd ~/.vim/bundle/YouCompleteMe
 # OR
 # cd ~/.vim/plugged/YouCompleteMe
+```
+
 ```
 python3 install.py --all
 ```

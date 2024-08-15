@@ -1,6 +1,22 @@
 # utilities-snippet
 random snippets
 
+## Table of Contents
+1. [Windows Shortcut](#windows-shortcut)
+2. [Git snippets](#git-snippets)
+3. [Powershell shortcut alias](#powershell-shortcut-alias)
+4. [Find path to a python library](#find-path-to-a-python-library)
+5. [Google Drive download](#google-drive-download)
+6. [HuggingFace Login Notebook](#huggingface-login-notebook)
+7. [Clone HF model to local](#clone-hf-model-to-local)
+8. [Bash Utilities](#bash-utilities)
+9. [SSH](#ssh)
+10. [SSH - Auto install Vscode extension Remote](#ssh---auto-install-vscode-extension-remote)
+11. [Newly installed Windows](#newly-installed-windows)
+12. [WSL fix bugs](#wsl-fix-bugs)
+13. [WSL newly installed](#wsl-newly-installed)
+14. [Vim Configuration](#vim-configuration)
+15. 
 # Windows Shortcut
 ------------------
 **Screenshorts**:
@@ -229,7 +245,7 @@ Final step: restart the WSL
 -------------------
 1. Install `:PlugInstall`:
 ```
-sudo apt  install cmake -y
+sudo apt install build-essential cmake vim-nox python3-dev -y
 curl -fLo ~/.vim/autoload/plug.vim --create-dirs \
     https://raw.githubusercontent.com/junegunn/vim-plug/master/plug.vim
 ```
@@ -249,6 +265,24 @@ Install
 :PlugInstall
 ```
 
+4. Optional : You Complete Me Plugin
+```
+sudo mkdir -p /etc/apt/keyrings
+curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key | sudo gpg --dearmor -o /etc/apt/keyrings/nodesource.gpg
+echo "deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesource.com/node_current.x nodistro main" | sudo tee /etc/apt/sources.list.d/nodesource.list
+sudo apt install mono-complete golang nodejs openjdk-17-jdk openjdk-17-jre npm -y
+
+```
+
+```
+cd ~/.vim/bundle/YouCompleteMe
+# OR
+# cd ~/.vim/plugged/YouCompleteMe
+```
+
+```
+python3 install.py --all
+```
 
 
 

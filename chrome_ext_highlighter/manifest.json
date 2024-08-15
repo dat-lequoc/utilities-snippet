@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Word Highlighter",
-  "version": "1.3",
+  "version": "1.4",
   "description": "Highlight selected words, add asterisks around them, and copy text with or without instructions.",
   "permissions": [
     "activeTab",

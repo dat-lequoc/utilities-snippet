@@ -93,3 +93,11 @@ input:checked+.slider:before {
 #copyWithInstructionsButton:hover {
   background-color: #1e87db;
 }
+
+#openClaudeButton {
+  background-color: #FF4500;
+}
+
+#openClaudeButton:hover {
+  background-color: #E63E00;
+}

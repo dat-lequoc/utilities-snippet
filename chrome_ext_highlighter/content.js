@@ -84,6 +84,22 @@ function copyWithInstructions() {
   });
 }
 
+function getTextWithInstructions() {
+  return new Promise((resolve) => {
+    fetch(chrome.runtime.getURL('instructions_claude.txt'))
+      .then(response => response.text())
+      .then(instructions => {
+        const mainContent = extractMainContent();
+        const textWithInstructions = `${instructions}\n\n${mainContent}`;
+        resolve(textWithInstructions);
+      })
+      .catch(error => {
+        console.error('Error reading instructions file:', error);
+        resolve(null);
+      });
+  });
+}
+
 function showNotification(message) {
   const notification = document.createElement('div');
   notification.textContent = message;
@@ -121,6 +137,11 @@ chrome.runtime.onMessage.addListener(function (request, sender, sendResponse) {
   } else if (request.action === "showNotification") {
     showNotification(request.message);
     sendResponse({ success: true });
+  } else if (request.action === "getTextWithInstructions") {
+    getTextWithInstructions().then(text => {
+      sendResponse({ text: text });
+    });
+    return true; // Indicates that the response is asynchronous
   }
   return true;
 });

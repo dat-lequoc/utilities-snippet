@@ -9,13 +9,13 @@ import json
 import nbformat
 from datetime import datetime
 
-def get_all_files(path, exclude_extensions, exclude_filenames):
+def get_all_files(path, exclude_extensions, exclude_filenames, exclude_folders):
     if os.path.isfile(path):
         return [path]
     
     file_list = []
     for root, dirs, files in os.walk(path):
-        exclude_dirs = {'__pycache__', 'venv', '.git', 'Flattened_Files', 'Flattened_Files--files', 'databases', 'database', 'uploads'}
+        exclude_dirs = {'__pycache__', 'venv', '.git', 'Flattened_Files', 'Flattened_Files--files', 'databases', 'database', 'uploads'}.union(exclude_folders)
         dirs[:] = [d for d in dirs if not d.startswith('.') and d not in exclude_dirs]
         for file in files:
             remove_pattern = ['__pycache__', 'venv', '.git', '.sqlite3', '.log', '.png']
@@ -23,8 +23,6 @@ def get_all_files(path, exclude_extensions, exclude_filenames):
                 continue
             if not file.startswith('.') and file != '.env' and file != '__init__.py':
                 file_extension = os.path.splitext(file)[1]
-                #  print(file)
-                #  print(exclude_filenames)
                 if file_extension not in exclude_extensions and file not in exclude_filenames:
                     file_list.append(os.path.join(root, file))
     return file_list
@@ -74,8 +72,8 @@ def create_combined_content(files_subfolder):
     content += "Now, please do the following request using the data above. \n"
     return content
 
-def process_path(path, dest_folder, exclude_extensions, exclude_filenames):
-    all_files = get_all_files(path, exclude_extensions, exclude_filenames)
+def process_path(path, dest_folder, exclude_extensions, exclude_filenames, exclude_folders):
+    all_files = get_all_files(path, exclude_extensions, exclude_filenames, exclude_folders)
     total_tokens = 0
     for file_path in tqdm(all_files, desc=f"Processing {path}"):
         new_name = rename_file(file_path, os.path.dirname(path))
@@ -109,10 +107,12 @@ def main():
     parser.add_argument('paths', nargs='+', help='Files and folders to process')
     parser.add_argument('--exclude-extensions', '-ee', nargs='*', default=[], help='File extensions to exclude (e.g., .txt .pdf)')
     parser.add_argument('--exclude-filenames', '-ef', nargs='*', default=[], help='File names to exclude')
+    parser.add_argument('--exclude-folders', '-ed', nargs='*', default=[], help='Folder names to exclude')
     args = parser.parse_args()
 
     exclude_extensions = set(args.exclude_extensions)
     exclude_filenames = set(args.exclude_filenames)
+    exclude_folders = set(args.exclude_folders)
 
     # Create a unique directory name using current timestamp
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -125,7 +125,7 @@ def main():
     total_tokens = 0
     for path in args.paths:
         if os.path.exists(path):
-            total_tokens += process_path(path, files_subfolder, exclude_extensions, exclude_filenames)
+            total_tokens += process_path(path, files_subfolder, exclude_extensions, exclude_filenames, exclude_folders)
         else:
             print(f"Warning: {path} does not exist. Skipping.")
 

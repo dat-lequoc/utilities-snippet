@@ -147,8 +147,5 @@ def main():
     for size, name in get_file_sizes(files_subfolder):
         print(f"{size} bytes: {name}")
 
-    print(f"\nAll processed files and combined content are saved in: {output_dir}")
-    print("These files will persist until manually deleted or cleared by system maintenance.")
-
 if __name__ == "__main__":
     main()

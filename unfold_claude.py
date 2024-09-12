@@ -21,6 +21,10 @@ def get_all_files(path, exclude_extensions, exclude_filenames, exclude_folders):
         # Filter out directories
         dirs[:] = [d for d in dirs if not d.startswith('.') and d not in exclude_dirs]
         
+        # Skip processing files in excluded directories
+        if any(excluded in root for excluded in exclude_dirs):
+            continue
+        
         for file in files:
             remove_pattern = ['__pycache__', 'venv', '.git', '.sqlite3', '.log', '.png', '-lock', '.ico']
             if any(pattern in file for pattern in remove_pattern):

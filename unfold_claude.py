@@ -76,7 +76,7 @@ def create_combined_content(files_subfolder):
     content += "Now, please do the following request using the data above. \n"
     return content
 
-def process_path(path, dest_folder, exclude_extensions, exclude_filenames, exclude_folders):
+def process_path(path, dest_folder, exclude_extensions, exclude_filenames, exclude_folders, verbose):
     all_files = get_all_files(path, exclude_extensions, exclude_filenames, exclude_folders)
     total_tokens = 0
     for file_path in tqdm(all_files, desc=f"Processing {path}"):
@@ -93,6 +93,8 @@ def process_path(path, dest_folder, exclude_extensions, exclude_filenames, exclu
             file_tokens = count_tokens(dest_path)
 
         total_tokens += file_tokens
+        if verbose:
+            print(f"Processed: {file_path} ({file_tokens} tokens)")
     return total_tokens
 
 def get_file_sizes(folder):
@@ -112,11 +114,15 @@ def main():
     parser.add_argument('--exclude-extensions', '-ee', nargs='*', default=['.woff', '.ico'], help='File extensions to exclude (e.g., .txt .pdf)')
     parser.add_argument('--exclude-filenames', '-ef', nargs='*', default=[], help='File names to exclude')
     parser.add_argument('--exclude-folders', '-ed', nargs='*', default=['node_modules'], help='Folder names to exclude')
+    parser.add_argument('-v', '--verbose', action='store_true', help='Enable verbose output')
     args = parser.parse_args()
 
     exclude_extensions = set(args.exclude_extensions)
     exclude_filenames = set(args.exclude_filenames)
     exclude_folders = set(args.exclude_folders)
+
+    # Print excluded folders for debugging
+    print(f"Excluded folders: {exclude_folders}")
 
     # Create a unique directory name using current timestamp
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -129,7 +135,9 @@ def main():
     total_tokens = 0
     for path in args.paths:
         if os.path.exists(path):
-            total_tokens += process_path(path, files_subfolder, exclude_extensions, exclude_filenames, exclude_folders)
+            if args.verbose:
+                print(f"Processing path: {path}")
+            total_tokens += process_path(path, files_subfolder, exclude_extensions, exclude_filenames, exclude_folders, args.verbose)
         else:
             print(f"Warning: {path} does not exist. Skipping.")
 
@@ -141,15 +149,15 @@ def main():
 
     pyperclip.copy(combined_content)
 
-    print(f"Total tokens in all processed files: {total_tokens}")
+    print(f"\nTotal tokens in all processed files: {total_tokens}")
     cost = (total_tokens / 1_000_000) * 3.00
     print(f"Estimated cost (Claude Sonnet rate): ${cost:.2f} USD")
     print(f"Combined content has been copied to clipboard and saved to: {output_file}")
 
-    # Print sorted file sizes
-    print("\nFiles sorted by size (in bytes):")
-    for size, name in get_file_sizes(files_subfolder):
-        print(f"{size} bytes: {name}")
+    if args.verbose:
+        print("\nFiles sorted by size (in bytes):")
+        for size, name in get_file_sizes(files_subfolder):
+            print(f"{size} bytes: {name}")
 
 if __name__ == "__main__":
     main()

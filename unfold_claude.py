@@ -80,11 +80,9 @@ def process_path(path, dest_folder, exclude_extensions, exclude_filenames, exclu
     all_files = get_all_files(path, exclude_extensions, exclude_filenames, exclude_folders)
     total_tokens = 0
     for file_path in tqdm(all_files, desc=f"Processing {path}"):
-        new_name = rename_file(file_path, os.path.dirname(path))
-        dest_path = os.path.join(dest_folder, new_name)
-        
+        dest_path = os.path.join(dest_folder, file_path.replace('/', '--'))
         os.makedirs(os.path.dirname(dest_path), exist_ok=True)
-        
+
         if file_path.endswith('.ipynb'):
             # Convert .ipynb to text and save
             with open(dest_path + '.txt', 'w', encoding='utf-8') as f:
@@ -93,7 +91,7 @@ def process_path(path, dest_folder, exclude_extensions, exclude_filenames, exclu
         else:
             shutil.copy2(file_path, dest_path)
             file_tokens = count_tokens(dest_path)
-        
+
         total_tokens += file_tokens
     return total_tokens
 
@@ -103,7 +101,8 @@ def get_file_sizes(folder):
         for file in files:
             file_path = os.path.join(root, file)
             file_size = os.path.getsize(file_path)
-            original_name = file.replace('--', '/')
+            relative_path = os.path.relpath(file_path, folder)
+            original_name = relative_path.replace('--', '/')
             file_sizes.append((file_size, original_name))
     return sorted(file_sizes)
 

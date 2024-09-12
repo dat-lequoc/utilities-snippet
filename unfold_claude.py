@@ -15,10 +15,14 @@ def get_all_files(path, exclude_extensions, exclude_filenames, exclude_folders):
     
     file_list = []
     for root, dirs, files in os.walk(path):
-        exclude_dirs = {'__pycache__', 'venv', '.git', 'Flattened_Files', 'Flattened_Files--files', 'databases', 'database', 'uploads'}.union(exclude_folders)
+        # Convert exclude_folders to a set for faster lookup
+        exclude_dirs = {'favicon', '__pycache__', 'venv', '.git', 'Flattened_Files', 'Flattened_Files--files', 'databases', 'database', 'uploads'}.union(set(exclude_folders))
+        
+        # Filter out directories
         dirs[:] = [d for d in dirs if not d.startswith('.') and d not in exclude_dirs]
+        
         for file in files:
-            remove_pattern = ['__pycache__', 'venv', '.git', '.sqlite3', '.log', '.png']
+            remove_pattern = ['__pycache__', 'venv', '.git', '.sqlite3', '.log', '.png', '-lock', '.ico']
             if any(pattern in file for pattern in remove_pattern):
                 continue
             if not file.startswith('.') and file != '.env' and file != '__init__.py':
@@ -102,12 +106,13 @@ def get_file_sizes(folder):
             original_name = file.replace('--', '/')
             file_sizes.append((file_size, original_name))
     return sorted(file_sizes)
+
 def main():
     parser = argparse.ArgumentParser(description="Process files and folders for Claude.")
     parser.add_argument('paths', nargs='+', help='Files and folders to process')
-    parser.add_argument('--exclude-extensions', '-ee', nargs='*', default=[], help='File extensions to exclude (e.g., .txt .pdf)')
+    parser.add_argument('--exclude-extensions', '-ee', nargs='*', default=['.woff', '.ico'], help='File extensions to exclude (e.g., .txt .pdf)')
     parser.add_argument('--exclude-filenames', '-ef', nargs='*', default=[], help='File names to exclude')
-    parser.add_argument('--exclude-folders', '-ed', nargs='*', default=[], help='Folder names to exclude')
+    parser.add_argument('--exclude-folders', '-ed', nargs='*', default=['node_modules'], help='Folder names to exclude')
     args = parser.parse_args()
 
     exclude_extensions = set(args.exclude_extensions)

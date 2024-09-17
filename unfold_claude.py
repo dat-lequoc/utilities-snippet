@@ -8,6 +8,7 @@ from tqdm import tqdm
 import json
 import nbformat
 from datetime import datetime
+import subprocess
 
 def get_all_files(path, exclude_extensions, exclude_filenames, exclude_folders):
     if os.path.isfile(path):
@@ -16,7 +17,7 @@ def get_all_files(path, exclude_extensions, exclude_filenames, exclude_folders):
     file_list = []
     for root, dirs, files in os.walk(path):
         # Convert exclude_folders to a set for faster lookup
-        exclude_dirs = {'favicon', '__pycache__', 'venv', '.git', 'Flattened_Files', 'Flattened_Files--files', 'databases', 'database', 'uploads'}.union(set(exclude_folders))
+        exclude_dirs = {'favicon', '__pycache__', 'venv', '.git', 'databases', 'database', 'uploads'}.union(set(exclude_folders))
         
         # Filter out directories
         dirs[:] = [d for d in dirs if not d.startswith('.') and d not in exclude_dirs]
@@ -26,8 +27,9 @@ def get_all_files(path, exclude_extensions, exclude_filenames, exclude_folders):
             continue
         
         for file in files:
-            remove_pattern = ['__pycache__', 'venv', '.git', '.sqlite3', '.log', '.png', '-lock', '.ico']
+            remove_pattern = ['__pycache__', 'venv',  '.tsbuildinfo', '.git', '.sqlite3', '.log', '.png', '-lock', '.ico']
             if any(pattern in file for pattern in remove_pattern):
+                print('- ', file)
                 continue
             if not file.startswith('.') and file != '.env' and file != '__init__.py':
                 file_extension = os.path.splitext(file)[1]
@@ -61,23 +63,46 @@ def convert_ipynb_to_text(ipynb_path):
     
     return text_content
 
-def create_combined_content(files_subfolder):
-    content = "You are now reading a repository of code files. Each file's content is preceded by its path.\n\n"
+def create_combined_content(files_subfolder, include_repo_structure=False):
+    content = "This file is a merged representation of the entire codebase, combining all repository files into a single document.\n\n"
+
+    # Repository Structure
+    if include_repo_structure:
+        content += "================================================================\n"
+        content += "Repository Structure\n"
+        content += "================================================================\n"
+        try:
+            tree_output = subprocess.check_output(['tree', '-I', 'node_modules'], text=True)
+            content += tree_output + "\n"
+        except subprocess.CalledProcessError:
+            content += "Error: Unable to run 'tree' command. Make sure it's installed on your system.\n\n"
+        except FileNotFoundError:
+            content += "Error: 'tree' command not found. Please install it or make sure it's in your PATH.\n\n"
+
+    # Repository Files
+    content += "================================================================\n"
+    content += "Repository Files\n"
+    content += "================================================================\n\n"
+
     for root, _, files in os.walk(files_subfolder):
         for file in files:
             file_path = os.path.join(root, file)
             relative_path = os.path.relpath(file_path, files_subfolder)
             relative_path = relative_path.replace('--', '/')
+
+            content += "================\n"
             content += f"File: {relative_path}\n"
-            content += "```\n"
+            content += "================\n"
+
             if file.endswith('.ipynb'):
                 content += convert_ipynb_to_text(file_path)
             else:
                 with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
                     content += f.read()
-            content += "\n```\n\n"
-    
-    content += "Now, please do the following request using the data above. \n"
+            content += "\n\n"
+
+    content += "================================================================\n"
+
     return content
 
 def process_path(path, dest_folder, exclude_extensions, exclude_filenames, exclude_folders, verbose):
@@ -112,6 +137,7 @@ def get_file_sizes(folder):
             file_sizes.append((file_size, original_name))
     return sorted(file_sizes)
 
+
 def main():
     parser = argparse.ArgumentParser(description="Process files and folders for Claude.")
     parser.add_argument('paths', nargs='+', help='Files and folders to process')
@@ -119,6 +145,7 @@ def main():
     parser.add_argument('--exclude-filenames', '-ef', nargs='*', default=[], help='File names to exclude')
     parser.add_argument('--exclude-folders', '-ed', nargs='*', default=['node_modules'], help='Folder names to exclude')
     parser.add_argument('-v', '--verbose', action='store_true', help='Enable verbose output')
+    parser.add_argument('--no-repo', action='store_true', help='Exclude repository structure from the output')
     args = parser.parse_args()
 
     exclude_extensions = set(args.exclude_extensions)
@@ -145,7 +172,7 @@ def main():
         else:
             print(f"Warning: {path} does not exist. Skipping.")
 
-    combined_content = create_combined_content(files_subfolder)
+    combined_content = create_combined_content(files_subfolder, include_repo_structure=not args.no_repo)
 
     output_file = os.path.join(output_dir, 'combined_content.txt')
     with open(output_file, 'w', encoding='utf-8') as f:

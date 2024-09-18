@@ -60,6 +60,17 @@ def extract_file_path(task):
     match = re.search(r'Update file: (.*?)(?:\n|$)', task)
     return match.group(1) if match else None
 
+def delete_file(file_path):
+    try:
+        os.remove(file_path)
+        print(f"File deleted successfully: {file_path}")
+    except FileNotFoundError:
+        print(f"File not found: {file_path}")
+    except PermissionError:
+        print(f"Permission denied: Unable to delete {file_path}")
+    except Exception as e:
+        print(f"An error occurred while deleting {file_path}: {e}")
+
 def main():
     args = parse_arguments()
     aider_args = ' '.join(args.aider_args)
@@ -78,12 +89,16 @@ def main():
         file_path = extract_file_path(task)
         if file_path:
             # Extract action from the task
-            action_match = re.search(r'action: (\w+)', task)
-            action = action_match.group(1) if action_match else "update"
+            action_match = re.search(r'action: (\w+)', task, re.IGNORECASE)
+            action = action_match.group(1).lower() if action_match else "update"
+            
+            if action == "delete":
+                delete_file(file_path)
+                continue  # Skip to the next task after deletion
             
             dir_path = os.path.dirname(file_path)
             
-            if action.lower() == "create" and dir_path:
+            if action == "create" and dir_path:
                 # Create directory only if action is create and dir_path is not empty
                 mkdir_command = f'mkdir -p {shlex.quote(dir_path)}'
                 print(f"Creating directory: {mkdir_command}")
@@ -92,13 +107,14 @@ def main():
                 except subprocess.CalledProcessError as e:
                     print(f"Warning: Failed to create directory: {e}")
             
-            # Touch file regardless of action
-            touch_command = f'touch {shlex.quote(file_path)}'
-            print(f"Creating/updating file: {touch_command}")
-            try:
-                subprocess.run(touch_command, shell=True, check=True)
-            except subprocess.CalledProcessError as e:
-                print(f"Warning: Failed to create/update file: {e}")
+            # Touch file for create or update actions
+            if action in ["create", "update"]:
+                touch_command = f'touch {shlex.quote(file_path)}'
+                print(f"Creating/updating file: {touch_command}")
+                try:
+                    subprocess.run(touch_command, shell=True, check=True)
+                except subprocess.CalledProcessError as e:
+                    print(f"Warning: Failed to create/update file: {e}")
         else:
             print("Warning: Could not extract file path from task.")
         
@@ -109,7 +125,7 @@ def main():
             f'--yes '
             f'{model_flag} '
             f'--no-suggest-shell-commands '
-            f'--no-auto-commits '
+            #  f'--no-auto-commits '
             f'{aider_args} '
             f'--message {escaped_task}'
         )

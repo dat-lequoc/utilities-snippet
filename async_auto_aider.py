@@ -164,17 +164,19 @@ def get_model_flag(args):
 
 def format_task(task):
     formatted_task = f"Update file: {task['path']}\n\n"
-    #  formatted_task += f"\"action\": \"{task['action']}\"\n\n"
+    formatted_task += f"\"action\": \"{task['action']}\"\n\n"
     formatted_task += f"Description: {task['description']}\n\n"
-    formatted_task += f"Note: Exit if nothing to change.\n\n"
     if task['action'].lower() != 'delete':
         if 'code' in task and task['code'].strip():
-            formatted_task += f"Content:\n\n{task['code']}"
+            formatted_task += f"New content:\n\n{task['code']}"
         else:
-            formatted_task += "No code provided. Exit now.\n"
+            formatted_task += "No code provided.\n"
     return formatted_task
 
-async def run_task(i, task, model_flag, aider_args, args, total_tasks, results):
+async def run_task(i, task, model_flag, aider_args, args, total_tasks, results, timeout_event):
+    if timeout_event.is_set():
+        return  # Skip execution if timeout has occurred
+
     print("#" * 20)
     print("#" * 20)
 
@@ -187,7 +189,7 @@ async def run_task(i, task, model_flag, aider_args, args, total_tasks, results):
     action = task['action'].lower()
 
     print(f"[Action]: {action}")
-    
+
     # Collect per-task result
     task_result = {
         'status': False,  # Will update to True if successful
@@ -294,28 +296,54 @@ async def main():
 
     model_flag = get_model_flag(args)
 
+    # Assign IDs to tasks and save to tasks.json
+    log_folder = 'log'
+    os.makedirs(log_folder, exist_ok=True)
+    tasks_with_ids = []
+    for idx, task in enumerate(tasks, start=1):
+        task_with_id = {'id': idx, **task}
+        tasks_with_ids.append(task_with_id)
+
+    # Save tasks to tasks.json
+    tasks_json_path = os.path.join(log_folder, 'tasks.json')
+    with open(tasks_json_path, 'w') as f:
+        json.dump(tasks_with_ids, f, indent=4)
+    print(f"Tasks saved to {tasks_json_path}")
+
     # Apply task selection based on --skip and --only arguments
     if args.only:
-        selected_tasks = [tasks[i-1] for i in args.only if 1 <= i <= len(tasks)]
+        selected_tasks = [tasks_with_ids[i-1] for i in args.only if 1 <= i <= len(tasks)]
     else:
-        selected_tasks = tasks[args.skip:]
+        selected_tasks = tasks_with_ids[args.skip:]
 
     total_tasks = len(tasks)  # Store the total number of tasks
 
     # Dictionary to keep track of task results
     results = {}
 
+    # Create an event to signal timeout
+    timeout_event = asyncio.Event()
+
     # Create a list of tasks to run asynchronously
     task_coroutines = []
     for i, task in enumerate(selected_tasks):
         task_coroutines.append(
-            run_task(i, task, model_flag, aider_args, args, total_tasks, results)
+            run_task(i, task, model_flag, aider_args, args, total_tasks, results, timeout_event)
         )
 
-    # Run all tasks in parallel and wait for completion
-    await asyncio.gather(*task_coroutines)
+    # Set the timeout
+    timeout_seconds = 300  # 5 minutes
 
-    # After all tasks are completed, report the results
+    try:
+        await asyncio.wait_for(
+            asyncio.gather(*task_coroutines),
+            timeout=timeout_seconds
+        )
+    except asyncio.TimeoutError:
+        print(f"\nTimeout reached after {timeout_seconds} seconds.")
+        timeout_event.set()  # Signal tasks to stop if possible
+
+    # After all tasks are completed or timeout occurred, report the results
     print("\nSummary of task execution:")
     for task_num in sorted(results.keys()):
         task_result = results[task_num]

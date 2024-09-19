@@ -8,6 +8,7 @@ import os
 import xml.etree.ElementTree as ET
 from typing import List, Dict, Any
 import asyncio
+import shutil  # Added for cleaning log directory
 
 def parse_fault_tolerant_xml(xml_string: str) -> List[Dict[str, Any]]:
     # Normalize line endings
@@ -99,6 +100,12 @@ def parse_arguments():
     model_group.add_argument('--4-turbo', action='store_true', help="Use gpt-4-1106-preview model for the main chat [env var: AIDER_4_TURBO]")
     model_group.add_argument('--deepseek', action='store_true', help="Use deepseek/deepseek-coder model for the main chat [env var: AIDER_DEEPSEEK]")
 
+    # Auto-commit flags
+    auto_commit_group = parser.add_mutually_exclusive_group()
+    auto_commit_group.add_argument('--auto-commits', dest='auto_commits', action='store_true', help='Enable automatic Git commits.')
+    auto_commit_group.add_argument('--no-auto-commits', dest='auto_commits', action='store_false', help='Disable automatic Git commits (default).')
+    parser.set_defaults(auto_commits=False)  # Default to --no-auto-commits
+
     parser.add_argument('--input', help="Path to the input file (XML or JSON)")
     parser.add_argument('--skip', type=int, default=0, help="Number of tasks to skip")
     parser.add_argument('--only', type=int, nargs='+', help="Only execute specified task numbers")
@@ -118,29 +125,48 @@ def get_input(input_file=None):
         print("Please paste your text below. When finished, press Ctrl+D (Unix) or Ctrl+Z (Windows) followed by Enter:")
         return sys.stdin.read().strip()
 
-def delete_file(file_path):
+def delete_file(file_path, log_fh, auto_commits):
     try:
         os.remove(file_path)
-        print(f"File deleted successfully: {file_path}")
+        message = f"File deleted successfully: {file_path}"
+        print(message)
+        log_fh.write(message + "\n")
 
-        # Git operations
-        try:
-            # Remove the file from Git
-            subprocess.run(['git', 'rm', file_path], check=True)
-            print(f"File removed from Git: {file_path}")
+        if auto_commits:
+            # Git operations
+            try:
+                # Remove the file from Git
+                subprocess.run(['git', 'rm', file_path], check=True)
+                message = f"File removed from Git: {file_path}"
+                print(message)
+                log_fh.write(message + "\n")
 
-            # Commit the change
-            commit_message = f"Remove file: {file_path}"
-            subprocess.run(['git', 'commit', '-m', commit_message], check=True)
-            print(f"Changes committed: {commit_message}")
-        except subprocess.CalledProcessError as e:
-            print(f"Error performing Git operations: {e}")
+                # Commit the change
+                commit_message = f"Remove file: {file_path}"
+                subprocess.run(['git', 'commit', '-m', commit_message], check=True)
+                message = f"Changes committed: {commit_message}"
+                print(message)
+                log_fh.write(message + "\n")
+            except subprocess.CalledProcessError as e:
+                error_message = f"Error performing Git operations: {e}"
+                print(error_message)
+                log_fh.write(error_message + "\n")
+        else:
+            message = "Auto commits are disabled. Skipping Git operations."
+            print(message)
+            log_fh.write(message + "\n")
     except FileNotFoundError:
-        print(f"File not found: {file_path}")
+        message = f"File not found: {file_path}"
+        print(message)
+        log_fh.write(message + "\n")
     except PermissionError:
-        print(f"Permission denied: Unable to delete {file_path}")
+        message = f"Permission denied: Unable to delete {file_path}"
+        print(message)
+        log_fh.write(message + "\n")
     except Exception as e:
-        print(f"An error occurred while deleting {file_path}: {e}")
+        message = f"An error occurred while deleting {file_path}: {e}"
+        print(message)
+        log_fh.write(message + "\n")
 
 def get_model_flag(args):
     if args.model:
@@ -195,6 +221,8 @@ async def run_task(i, task, model_flag, aider_args, args, total_tasks, results, 
         'status': False,  # Will update to True if successful
         'code_missing': False,
         'unexpected_action': False,
+        'action': action,   # Added action
+        'path': file_path,  # Added path
     }
 
     expected_actions = ['create', 'update', 'delete']
@@ -207,79 +235,96 @@ async def run_task(i, task, model_flag, aider_args, args, total_tasks, results, 
         print(f"Notice: 'code' field is missing in task {original_task_number}")
         task_result['code_missing'] = True
 
-    if action == "delete":
-        delete_file(file_path)
-        task_result['status'] = True  # Mark as success
-        results[original_task_number] = task_result
-        return  # Skip to the next task after deletion
-
-    dir_path = os.path.dirname(file_path)
-
-    if action == "create" and dir_path:
-        # Create directory only if action is create and dir_path is not empty
-        mkdir_command = f'mkdir -p {shlex.quote(dir_path)}'
-        print(f"Creating directory: {mkdir_command}")
-        try:
-            subprocess.run(mkdir_command, shell=True, check=True)
-        except subprocess.CalledProcessError as e:
-            print(f"Warning: Failed to create directory: {e}")
-
-    # Touch file for create or update actions
-    if action in ["create", "update"]:
-        touch_command = f'touch {shlex.quote(file_path)}'
-        print(f"Creating/updating file: {touch_command}")
-        try:
-            subprocess.run(touch_command, shell=True, check=True)
-        except subprocess.CalledProcessError as e:
-            print(f"Warning: Failed to create/update file: {e}")
-
-    # Format the task to string before sending to the command
-    formatted_task = format_task(task)
-    escaped_task = shlex.quote(formatted_task)
-    command = (
-        f'python -m aider '
-        f'--yes '
-        f'{model_flag} '
-        f'--no-suggest-shell-commands '
-        f'{aider_args} '
-        f'--message {escaped_task}'
-    )
-    if action.lower() != 'delete':
-        command += f' {shlex.quote(file_path)}'
-
-    print(f"Running command: {trim_command(command)}")
-
     # Prepare the log file
     log_folder = 'log'
     os.makedirs(log_folder, exist_ok=True)
     log_file = os.path.join(log_folder, f'task_{original_task_number}.log')
 
     try:
-        process = await asyncio.create_subprocess_shell(
-            command,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-        )
-        stdout, stderr = await process.communicate()
+        with open(log_file, 'w') as log_fh:
+            if action == "delete":
+                delete_file(file_path, log_fh, args.auto_commits)
+                task_result['status'] = True  # Mark as success
+                results[original_task_number] = task_result
+                return  # Skip to the next task after deletion
 
-        # Write outputs to log file
-        with open(log_file, 'w') as f:
-            f.write(f"Command: {command}\n\n")
-            f.write("Standard Output:\n")
-            f.write(stdout.decode())
-            f.write("\nStandard Error:\n")
-            f.write(stderr.decode())
+            dir_path = os.path.dirname(file_path)
 
-        if process.returncode == 0:
-            print(f"Task {original_task_number} executed successfully.")
-            task_result['status'] = True  # Mark as success
-        else:
-            print(f"Error executing task {original_task_number}. See {log_file} for details.")
-            task_result['status'] = False  # Mark as failure
+            if action == "create" and dir_path:
+                # Create directory only if action is create and dir_path is not empty
+                mkdir_command = f'mkdir -p {shlex.quote(dir_path)}'
+                log_fh.write(f"Creating directory: {mkdir_command}\n")
+                print(f"Creating directory: {mkdir_command}")
+                try:
+                    subprocess.run(mkdir_command, shell=True, check=True)
+                except subprocess.CalledProcessError as e:
+                    warning_message = f"Warning: Failed to create directory: {e}"
+                    print(warning_message)
+                    log_fh.write(warning_message + "\n")
+
+            # Touch file for create or update actions
+            if action in ["create", "update"]:
+                touch_command = f'touch {shlex.quote(file_path)}'
+                log_fh.write(f"Creating/updating file: {touch_command}\n")
+                print(f"Creating/updating file: {touch_command}")
+                try:
+                    subprocess.run(touch_command, shell=True, check=True)
+                except subprocess.CalledProcessError as e:
+                    warning_message = f"Warning: Failed to create/update file: {e}"
+                    print(warning_message)
+                    log_fh.write(warning_message + "\n")
+
+            # Format the task to string before sending to the command
+            formatted_task = format_task(task)
+            escaped_task = shlex.quote(formatted_task)
+            command = (
+                f'python -m aider '
+                f'--yes '
+                f'{model_flag} '
+                f'--no-suggest-shell-commands '
+                f'{aider_args} '
+                f'--message {escaped_task}'
+            )
+            if action.lower() != 'delete':
+                command += f' {shlex.quote(file_path)}'
+
+            log_fh.write(f"Running command: {command}\n")
+            print(f"Running command: {trim_command(command)}")
+
+            try:
+                process = await asyncio.create_subprocess_shell(
+                    command,
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE,
+                )
+                stdout, stderr = await process.communicate()
+
+                # Write outputs to log file
+                log_fh.write("Standard Output:\n")
+                log_fh.write(stdout.decode() + "\n")
+                log_fh.write("Standard Error:\n")
+                log_fh.write(stderr.decode() + "\n")
+
+                if process.returncode == 0:
+                    success_message = f"Task {original_task_number} executed successfully."
+                    print(success_message)
+                    log_fh.write(success_message + "\n")
+                    task_result['status'] = True  # Mark as success
+                else:
+                    error_message = f"Error executing task {original_task_number}. See {log_file} for details."
+                    print(error_message)
+                    log_fh.write(error_message + "\n")
+                    task_result['status'] = False  # Mark as failure
+
+            except Exception as e:
+                exception_message = f"Exception while executing task {original_task_number}: {e}"
+                print(exception_message)
+                log_fh.write(exception_message + "\n")
+                task_result['status'] = False  # Mark as failure
 
     except Exception as e:
-        print(f"Exception while executing task {original_task_number}: {e}")
-        task_result['status'] = False  # Mark as failure
+        print(f"Failed to write to log file {log_file}: {e}")
+        task_result['status'] = False
 
     # Update results
     results[original_task_number] = task_result
@@ -287,6 +332,13 @@ async def run_task(i, task, model_flag, aider_args, args, total_tasks, results, 
 async def main():
     args = parse_arguments()
     aider_args = ' '.join(args.aider_args)
+
+    # Append auto-commit flags to aider_args
+    if args.auto_commits:
+        aider_args += ' --auto-commits'
+    else:
+        aider_args += ' --no-auto-commits'
+
     text = get_input(args.input)
 
     tasks = extract_tasks(text, args.use_json)
@@ -298,7 +350,17 @@ async def main():
 
     # Assign IDs to tasks and save to tasks.json
     log_folder = 'log'
+    
+    # Clean log/* before running
+    if os.path.exists(log_folder):
+        try:
+            shutil.rmtree(log_folder)
+            print(f"Cleaned the '{log_folder}' directory before running.")
+        except Exception as e:
+            print(f"Error cleaning the '{log_folder}' directory: {e}", file=sys.stderr)
+            sys.exit(1)
     os.makedirs(log_folder, exist_ok=True)
+
     tasks_with_ids = []
     for idx, task in enumerate(tasks, start=1):
         task_with_id = {'id': idx, **task}
@@ -306,9 +368,13 @@ async def main():
 
     # Save tasks to tasks.json
     tasks_json_path = os.path.join(log_folder, 'tasks.json')
-    with open(tasks_json_path, 'w') as f:
-        json.dump(tasks_with_ids, f, indent=4)
-    print(f"Tasks saved to {tasks_json_path}")
+    try:
+        with open(tasks_json_path, 'w') as f:
+            json.dump(tasks_with_ids, f, indent=4)
+        print(f"Tasks saved to {tasks_json_path}")
+    except IOError as e:
+        print(f"Error saving tasks to {tasks_json_path}: {e}", file=sys.stderr)
+        sys.exit(1)
 
     # Apply task selection based on --skip and --only arguments
     if args.only:
@@ -350,7 +416,9 @@ async def main():
         status = "Success" if task_result['status'] else "Failed"
         code_missing = "Yes" if task_result.get('code_missing') else "No"
         unexpected_action = "Yes" if task_result.get('unexpected_action') else "No"
-        print(f"Task {task_num}: {status}, Code Missing: {code_missing}, Unexpected Action: {unexpected_action}")
+        action = task_result.get('action', 'N/A')
+        path = task_result.get('path', 'N/A')
+        print(f"Task {task_num}: {status}, Action: {action}, Path: {path}, Code Missing: {code_missing}, Unexpected Action: {unexpected_action}")
 
 if __name__ == "__main__":
     asyncio.run(main())

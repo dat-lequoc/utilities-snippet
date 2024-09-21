@@ -1,0 +1,1682 @@
+<purpose>
+    Analyze the provided codebase diff and the updated codebase to identify any additional files
+    that require updates. Ensure the consistency and integrity of the entire project by
+    proposing necessary changes.
+</purpose>
+
+<instructions>
+    <instruction> Review the diff provided in the <diff> section and understand the changes applied
+        to the codebase in the <code-files> section . </instruction>
+    <instruction>
+        Identify other files in the codebase that may be affected by these changes and require
+        updates to maintain consistency.
+    </instruction>
+    <instruction>
+        Create, delete, or update files as necessary to ensure the project remains consistent
+        and functional after applying all changes.
+    </instruction>
+    <instruction>
+        Provide the code for each new or updated file in a single block.
+    </instruction>
+    <instruction>
+        Only include the updated parts of the code in your response.
+    </instruction>
+    <instruction>
+        Remove any redundant or obsolete code, files, components, functions, and dependencies
+        that are no longer needed. Explain each removal.
+    </instruction>
+    <instruction>
+        Respect the currently used libraries to avoid introducing unnecessary dependencies.
+    </instruction>
+    <instruction>
+        Maintain existing file names unless a change is necessary for better clarity or
+        structure.
+    </instruction>
+    <instruction>
+        Ensure that after applying all changes, the codebase remains fully functional and
+        consistent.
+    </instruction>
+</instructions>
+
+<diff> diff --git a/app/api/cards/route.ts b/app/api/cards/route.ts index 637620a..061d9b6 100644
+    --- a/app/api/cards/route.ts +++ b/app/api/cards/route.ts @@ -1,32 +1,40 @@ import {
+    NextResponse } from 'next/server'; -import { PrismaClient } from "@prisma/client" +import {
+    PrismaClient } from "@prisma/client"; import { getServerSession } from "next-auth/next"; import
+    { authOptions } from "../auth/[...nextauth]/route"; +const prisma = new PrismaClient(); + export
+    async function POST(req: Request) { - const session = await getServerSession(authOptions); - if
+    (!session || !session.user) { - return NextResponse.json({ error: 'Unauthorized' }, { status:
+    401 }); - } + const session = await getServerSession(authOptions); + if (!session ||
+    !session.user) { + return NextResponse.json({ error: 'Unauthorized' }, { status: 401 }); + } -
+    const { type, cards } = await req.json(); - const prisma = new PrismaClient() + const { type,
+    cards } = await req.json(); - try { - const savedCards = await prisma.flashcard.createMany({ -
+    data: cards.map((card: any) => ({ - type, - question: card.question, - answer: card.answer, -
+    example: card.example, - explanation: card.explanation, - userId: session.user.id, - })), - });
+    + try { + const savedCards = await prisma.flashcard.createMany({ + data: cards.map((card: any)
+    => ({ + type: card.type.toUpperCase(), // Ensure enum value matches + question: card.question ||
+    null, + answer: card.answer || null, + word: card.word || null, + translation: card.translation
+    || null, + example: card.example || null, + explanation: card.explanation || null, + notes:
+    card.notes || null, + lastReviewed: card.lastReviewed ? new Date(card.lastReviewed) : null, +
+    status: card.status.toUpperCase(), // Ensure enum value matches + category: card.category ? {
+    connectOrCreate: { where: { name: card.category, userId: session.user.id }, create: { name:
+    card.category, userId: session.user.id } } } : undefined, + user: { connect: { id:
+    session.user.id } }, + })), + skipDuplicates: true, + }); - return NextResponse.json({ count:
+    savedCards.count }); - } catch (error) { - console.error('Error saving cards:', error); - return
+    NextResponse.json({ error: `Failed to save cards (${cards.length})` }, { status: 500 }); - } -}
+    \ No newline at end of file + return NextResponse.json({ count: savedCards.count }); + } catch
+    (error) { + console.error('Error saving cards:', error); + return NextResponse.json({ error:
+    `Failed to save cards (${cards.length})` }, { status: 500 }); + } +} diff --git
+    a/app/slices/flashcardsSlice.ts b/app/slices/flashcardsSlice.ts index 99ac586..347dab0 100644
+    --- a/app/slices/flashcardsSlice.ts +++ b/app/slices/flashcardsSlice.ts @@ -1,9 +1,21 @@ import
+    { createSlice, PayloadAction } from '@reduxjs/toolkit'; interface Flashcard { - id?: string; -
+    question: string; - answer: string; + id: number; + type: 'FLASHCARD' | 'LANGUAGE'; + question?:
+    string; + answer?: string; + word?: string; + translation?: string; + example?: string; +
+    explanation?: string; + notes?: string; + lastReviewed?: string; + status: 'NEW' | 'LEARNING' |
+    'MASTERED'; + categoryId?: number; + userId: string; + createdAt: string; + updatedAt: string; }
+    const initialState: Flashcard[] = []; @@ -16,7 +28,7 @@ const flashcardsSlice = createSlice({
+    state.push(action.payload); }, removeFlashcard: (state, action: PayloadAction<number>) => { -
+    state.splice(action.payload, 1); + return state.filter(card => card.id !== action.payload); },
+    clearFlashcards: (state) => { return []; @@ -25,4 +37,4 @@ const flashcardsSlice = createSlice({
+    }); export const { addFlashcard, removeFlashcard, clearFlashcards } = flashcardsSlice.actions;
+    -export default flashcardsSlice.reducer; \ No newline at end of file +export default
+    flashcardsSlice.reducer; diff --git a/app/slices/languageCardsSlice.ts
+    b/app/slices/languageCardsSlice.ts index 96006da..d5037fc 100644 ---
+    a/app/slices/languageCardsSlice.ts +++ b/app/slices/languageCardsSlice.ts @@ -1,11 +1,18 @@
+    import { createSlice, PayloadAction } from '@reduxjs/toolkit'; interface LanguageCard { - id?:
+    string; + id: number; word: string; translation: string; example: string; explanation: string; +
+    categoryId?: number; + status: 'NEW' | 'LEARNING' | 'MASTERED'; + notes?: string; +
+    lastReviewed?: string; + userId: string; + createdAt: string; + updatedAt: string; } const
+    initialState: LanguageCard[] = []; @@ -18,7 +25,7 @@ const languageCardsSlice = createSlice({
+    state.push(action.payload); }, removeLanguageCard: (state, action: PayloadAction<number>) => { -
+    state.splice(action.payload, 1); + return state.filter(card => card.id !== action.payload); },
+    clearLanguageCards: (state) => { return []; @@ -27,4 +34,4 @@ const languageCardsSlice =
+    createSlice({ }); export const { addLanguageCard, removeLanguageCard, clearLanguageCards } =
+    languageCardsSlice.actions; -export default languageCardsSlice.reducer; \ No newline at end of
+    file +export default languageCardsSlice.reducer; diff --git a/prisma/schema.prisma
+    b/prisma/schema.prisma index 7a2f255..b32fb5e 100644 --- a/prisma/schema.prisma +++
+    b/prisma/schema.prisma @@ -1,6 +1,3 @@ -// This is your Prisma schema file, -// learn more about
+    it in the docs: https://pris.ly/d/prisma-schema - datasource db { provider = "mongodb" url =
+    env("DATABASE_URL") @@ -11,91 +8,90 @@ generator client { } model User { - id String @id
+    @default(auto()) @map("_id") @db.ObjectId - email String @unique - name String? - emailVerified
+    DateTime? - image String? - createdAt DateTime @default(now()) - updatedAt DateTime @updatedAt -
+    documents Document[] - flashcards Flashcard[] - learningStats LearningStats? - accounts
+    Account[] - sessions Session[] -} - -model Account { - id String @id @default(auto())
+    @map("_id") @db.ObjectId - userId String @db.ObjectId - type String - provider String -
+    providerAccountId String - refresh_token String? - access_token String? - expires_at Int? -
+    token_type String? - scope String? - id_token String? - session_state String? - - user User
+    @relation(fields: [userId], references: [id], onDelete: Cascade) - - @@unique([provider,
+    providerAccountId]) -} - -model Session { - id String @id @default(auto()) @map("_id")
+    @db.ObjectId - sessionToken String @unique - userId String @db.ObjectId - expires DateTime -
+    user User @relation(fields: [userId], references: [id], onDelete: Cascade) + id String @id
+    @default(auto()) @map("_id") @db.ObjectId + name String? + email String? @unique + emailVerified
+    DateTime? + image String? + flashcards Flashcard[] + categories Category[] + learningStat
+    LearningStat? + badges Badge[] + powerUps PowerUp[] + createdAt DateTime @default(now()) +
+    updatedAt DateTime @updatedAt } -model VerificationToken { - id String @id @default(auto())
+    @map("_id") @db.ObjectId - identifier String - token String @unique - expires DateTime - -
+    @@unique([identifier, token]) +enum FlashcardType { + FLASHCARD + LANGUAGE } -model Document { -
+    id String @id @default(auto()) @map("_id") @db.ObjectId - title String - fileType String -
+    fileUrl String - createdAt DateTime @default(now()) - updatedAt DateTime @updatedAt - user User
+    @relation(fields: [userId], references: [id]) - userId String @db.ObjectId - flashcards
+    Flashcard[] +enum FlashcardStatus { + NEW + LEARNING + MASTERED } model Flashcard { - id String
+    @id @default(auto()) @map("_id") @db.ObjectId - type String // "flashcard" or "language" + id
+    String @id @default(auto()) @map("_id") @db.ObjectId + type FlashcardType question String?
+    answer String? + word String? + translation String? example String? explanation String? -
+    createdAt DateTime @default(now()) - updatedAt DateTime @updatedAt + notes String? lastReviewed
+    DateTime? - nextReview DateTime? - user User @relation(fields: [userId], references: [id]) -
+    userId String @db.ObjectId - document Document? @relation(fields: [documentId], references:
+    [id]) - documentId String? @db.ObjectId + status FlashcardStatus @default(NEW) + category
+    Category? @relation(fields: [categoryId], references: [id]) + categoryId String? @db.ObjectId +
+    user User @relation(fields: [userId], references: [id]) + userId String @db.ObjectId + createdAt
+    DateTime @default(now()) + updatedAt DateTime @updatedAt +} + +model Category { + id String @id
+    @default(auto()) @map("_id") @db.ObjectId + name String + user User @relation(fields: [userId],
+    references: [id]) + userId String @db.ObjectId + flashcards Flashcard[] + createdAt DateTime
+    @default(now()) + updatedAt DateTime @updatedAt + + @@unique([name, userId]) +} + +model
+    LearningStat { + id String @id @default(auto()) @map("_id") @db.ObjectId + user User
+    @relation(fields: [userId], references: [id]) + userId String @unique @db.ObjectId +
+    totalCardsCreated Int @default(0) + totalCardsLearned Int @default(0) + xp Int @default(0) +
+    streakDays Int @default(0) + level Int @default(1) + lastActive DateTime @default(now()) +} +
+    +model Badge { + id String @id @default(auto()) @map("_id") @db.ObjectId + name String +
+    description String? + user User @relation(fields: [userId], references: [id]) + userId String
+    @db.ObjectId + createdAt DateTime @default(now()) } -model LearningStats { - id String @id
+    @default(auto()) @map("_id") @db.ObjectId - totalFlashcards Int @default(0) - lastStudySession
+    DateTime? - createdAt DateTime @default(now()) - updatedAt DateTime @updatedAt - user User
+    @relation(fields: [userId], references: [id]) - userId String @unique @db.ObjectId +model
+    PowerUp { + id String @id @default(auto()) @map("_id") @db.ObjectId + name String + description
+    String? + expirationDate DateTime? + user User @relation(fields: [userId], references: [id]) +
+    userId String @db.ObjectId + createdAt DateTime @default(now()) } \ No newline at end of file </diff>
+
+<code-files>
+    <documents>
+        <document index="1">
+            <source>app/api/generate/route.ts</source>
+            <document_content>
+                import { NextRequest, NextResponse } from 'next/server';
+                import Anthropic from '@anthropic-ai/sdk';
+
+                export async function POST(req: NextRequest) {
+                console.log('API called');
+
+                const { apiKey, model, prompt } = await req.json();
+
+                if (!apiKey || !model || !prompt) {
+                return NextResponse.json({ message: 'Missing required parameters' }, { status: 400
+                });
+                }
+
+                const anthropic = new Anthropic({
+                apiKey: apiKey,
+                });
+
+                try {
+                const response = await anthropic.messages.create({
+                model: model,
+                max_tokens: 1024,
+                messages: [{ role: 'user', content: prompt }],
+                });
+
+                return NextResponse.json({ content: response.content[0].text });
+                } catch (error) {
+                console.error('Error calling Anthropic API:', error);
+                return NextResponse.json({ message: 'Error generating content' }, { status: 500 });
+                }
+                }
+</document_content>
+        </document>
+        <document index="2">
+            <source>app/api/cards/route.ts</source>
+            <document_content>
+                import { NextResponse } from 'next/server';
+                import { PrismaClient } from "@prisma/client";
+                import { getServerSession } from "next-auth/next";
+                import { authOptions } from "../auth/[...nextauth]/route";
+
+                const prisma = new PrismaClient();
+
+                export async function POST(req: Request) {
+                const session = await getServerSession(authOptions);
+                if (!session || !session.user) {
+                return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+                }
+
+                const { type, cards } = await req.json();
+
+                try {
+                const savedCards = await prisma.flashcard.createMany({
+                data: cards.map((card: any) => ({
+                type: card.type.toUpperCase(), // Ensure enum value matches
+                question: card.question || null,
+                answer: card.answer || null,
+                word: card.word || null,
+                translation: card.translation || null,
+                example: card.example || null,
+                explanation: card.explanation || null,
+                notes: card.notes || null,
+                lastReviewed: card.lastReviewed ? new Date(card.lastReviewed) : null,
+                status: card.status.toUpperCase(), // Ensure enum value matches
+                category: card.category ? { connectOrCreate: { where: { name: card.category, userId:
+                session.user.id }, create: { name: card.category, userId: session.user.id } } } :
+                undefined,
+                user: { connect: { id: session.user.id } },
+                })),
+                skipDuplicates: true,
+                });
+
+                return NextResponse.json({ count: savedCards.count });
+                } catch (error) {
+                console.error('Error saving cards:', error);
+                return NextResponse.json({ error: `Failed to save cards (${cards.length})` }, {
+                status: 500 });
+                }
+                }
+
+            </document_content>
+        </document>
+        <document index="3">
+            <source>app/api/auth/[...nextauth]/route.ts</source>
+            <document_content>
+                import NextAuth from "next-auth"
+                import GoogleProvider from "next-auth/providers/google"
+                import GitHubProvider from "next-auth/providers/github"
+                import { PrismaAdapter } from "@next-auth/prisma-adapter"
+                import { PrismaClient } from "@prisma/client"
+                import { AuthOptions } from "next-auth"
+
+                const prisma = new PrismaClient()
+
+                export const authOptions: AuthOptions = {
+                adapter: PrismaAdapter(prisma),
+                providers: [
+                GoogleProvider({
+                clientId: process.env.GOOGLE_CLIENT_ID!,
+                clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
+                }),
+                GitHubProvider({
+                clientId: process.env.GITHUB_ID!,
+                clientSecret: process.env.GITHUB_SECRET!,
+                }),
+                ],
+                pages: {
+                signIn: '/signin',
+                },
+                callbacks: {
+                async session({ session, token }) {
+                if (session.user) {
+                session.user.id = token.sub;
+                }
+                return session;
+                },
+                async jwt({ token, user }) {
+                if (user) {
+                token.id = user.id;
+                }
+                return token;
+                },
+                async redirect({ url, baseUrl }) {
+                if (url === '/signin') {
+                return `${baseUrl}/main`
+                }
+                return url
+                },
+                },
+                events: {
+                async createUser({ user }) {
+                await prisma.learningStats.create({
+                data: {
+                userId: user.id,
+                },
+                });
+                },
+                },
+                secret: process.env.NEXTAUTH_SECRET,
+                session: {
+                strategy: "jwt",
+                },
+                jwt: {
+                secret: process.env.NEXTAUTH_SECRET,
+                },
+                debug: process.env.NODE_ENV === 'development',
+                }
+
+                const handler = NextAuth(authOptions)
+
+                export { handler as GET, handler as POST }
+</document_content>
+        </document>
+        <document index="4">
+            <source>app/globals.css</source>
+            <document_content>
+                @tailwind base;
+                @tailwind components;
+                @tailwind utilities;
+
+                :root {
+                --background: #ffffff;
+                --foreground: #171717;
+                }
+
+                @media (prefers-color-scheme: dark) {
+                :root {
+                --background: #0a0a0a;
+                --foreground: #ededed;
+                }
+                }
+
+                body {
+                color: var(--foreground);
+                background: var(--background);
+                font-family: Arial, Helvetica, sans-serif;
+                }
+
+                @layer utilities {
+                .text-balance {
+                text-wrap: balance;
+                }
+                }
+
+            </document_content>
+        </document>
+        <document index="5">
+            <source>app/layout.tsx</source>
+            <document_content> import type { Metadata } from "next"; import localFont from
+                "next/font/local"; import { Toaster } from "@/components/ui/toaster"; import {
+                Providers } from "@/components/Layout/Providers"; import "./globals.css"; import {
+                theme } from "@/utils/theme"; const geistSans = localFont({ src:
+                "../public/fonts/GeistVF.woff", variable: "--font-geist-sans", weight: "100 900",
+                }); const geistMono = localFont({ src: "../public/fonts/GeistMonoVF.woff", variable:
+                "--font-geist-mono", weight: "100 900", }); export const metadata: Metadata = {
+                title: "Recall AI", description: "Learn as you read", icons: { icon: '/icon.svg' },
+                }; export default function RootLayout({ children }: { children: React.ReactNode }) {
+                return ( <html lang="en">
+                    <body className= {`${geistSans.variable} ${geistMono.variable} antialiased bg-background text-foreground`}>
+                        <Providers> {children} <Toaster />
+                        </Providers>
+                    </body>
+                </html>
+                ); } </document_content>
+        </document>
+        <document index="6">
+            <source>app/main/page.tsx</source>
+            <document_content> import { getServerSession } from "next-auth/next" import { redirect }
+                from 'next/navigation' import { authOptions } from '../api/auth/[...nextauth]/route'
+                // import ClientMainInterface from '@/components/MainInterface/ClientMainInterface'
+                import { MainInterface } from '@/components/MainInterface/MainInterface' export
+                default async function Main() { try { const session = await
+                getServerSession(authOptions) if (!session) { console.log("No session found,
+                redirecting to signin") redirect('/signin') } console.log("Session found:",
+                JSON.stringify(session, null, 2)) return <MainInterface /> } catch (error) {
+                console.error("Error in Main component:", error)
+                redirect('/signin?error=SessionError') } } </document_content>
+        </document>
+        <document index="7">
+            <source>app/page.tsx</source>
+            <document_content> 'use client' import { useRef } from 'react' import Link from
+                "next/link" import { useSession } from "next-auth/react" import { Button } from
+                "@/components/ui/button" import { Input } from "@/components/ui/input" import {
+                Textarea } from "@/components/ui/textarea" import { Icons } from
+                "@/components/ui/icons" import SignOutButton from
+                '@/components/common/SignOutButton' export default function RecallAIPage() { const {
+                data: session } = useSession() const featuresRef = useRef<HTMLElement>(null) const
+                aboutRef = useRef<HTMLElement>(null) const contactRef = useRef<HTMLElement>(null)
+                const scrollToSection = (ref: React.RefObject<HTMLElement>) => { if (ref.current) {
+                ref.current.scrollIntoView({ behavior: 'smooth', block: 'start' }) } } return ( <div
+                    className="flex flex-col min-h-screen bg-gradient-to-b from-background to-muted">
+                    <header
+                        className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+                        <div className="container flex h-14 items-center">
+                            <Link className="flex items-center justify-center ml-4" href="#">
+                                <Icons.mainIcon className="w-8 h-8 mr-2" />
+                                <span
+                                    className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-500 to-pink-500">Recall
+                AI</span>
+                            </Link>
+                            <nav className="ml-auto flex items-center gap-4 sm:gap-6">
+                                <Link
+                                    href="#features"
+                                    onClick= {(e)=> {
+                                    e.preventDefault()
+                                    scrollToSection(featuresRef)
+                                    }}
+                                    className="text-sm font-medium hover:text-primary"
+                                    >
+                                    Features
+                                </Link>
+            <Link
+                                    href="#about"
+                                    onClick= {(e)=> {
+                                    e.preventDefault()
+                                    scrollToSection(aboutRef)
+                                    }}
+                                    className="text-sm font-medium hover:text-primary"
+                                    >
+                                    About
+                                </Link>
+            <Link
+                                    href="#contact"
+                                    onClick= {(e)=> {
+                                    e.preventDefault()
+                                    scrollToSection(contactRef)
+                                    }}
+                                    className="text-sm font-medium hover:text-primary"
+                                    >
+                                    Contact
+                                </Link>
+                {session ? ( <SignOutButton /> ) : ( <Button size="sm" variant="outline"
+                                    className="bg-black text-white font-bold">
+                                    <Link href="/signin">Sign In</Link>
+                                </Button>
+                )} </nav>
+                        </div>
+                    </header>
+                    <main className="flex-1">
+                        <section className="w-full py-12 md:py-24 lg:py-32 xl:py-48">
+                            <div className="container px-4 md:px-6">
+                                <div
+                                    className="grid gap-6 lg:grid-cols-[1fr_400px] lg:gap-12 xl:grid-cols-[1fr_600px]">
+                                    <div className="flex flex-col justify-center space-y-8">
+                                        <div className="space-y-6">
+                                            <h1
+                                                className="text-4xl font-bold tracking-tighter sm:text-5xl xl:text-6xl/none">
+                Learn as you <span className="text-blue-500">read</span>
+                                            </h1>
+                                            <p
+                                                className="max-w-[600px] text-muted-foreground md:text-xl space-y-2">
+                                                <span className="block">Turn any document into an
+                interactive learning experience with AI.</span>
+                                                <span className="block">Read once, remember forever
+                ...</span>
+                                            </p>
+                                        </div>
+                                        <div className="flex flex-col gap-4 min-[400px]:flex-row">
+                {session ? ( <Button size="lg"
+                                                className="bg-green-500 hover:bg-green-600 text-white font-bold">
+                                                <Link href="/main">Go to App</Link>
+                                            </Button>
+                ) : ( <Button size="lg"
+                                                className="bg-green-500 hover:bg-green-600 text-white font-bold">
+                                                <Link href="/signin">Get Started</Link>
+                                            </Button>
+                )} <Button
+                                                size="lg"
+                                                variant="outline"
+                                                onClick= {(e)=> {
+                                                e.preventDefault()
+                                                scrollToSection(featuresRef)
+                                                }}
+                                                >
+                                                Learn More
+                                            </Button>
+                                        </div>
+                                    </div>
+                                    <div className="flex items-center justify-center">
+                                        <div
+                                            className="relative w-[300px] h-[300px] sm:w-[400px] sm:h-[400px]">
+                                            <div
+                                                className="absolute inset-0 bg-gradient-to-r from-blue-500 to-teal-500 rounded-full blur-2xl opacity-20 animate-pulse"></div>
+                                            <div
+                                                className="relative bg-background border rounded-lg shadow-2xl p-6 backdrop-blur-sm">
+                                                <div className="space-y-2">
+                                                    <div
+                                                        className="h-4 w-3/4 bg-muted-foreground/20 rounded"></div>
+                                                    <div
+                                                        className="h-4 w-1/2 bg-muted-foreground/20 rounded"></div>
+                                                    <div
+                                                        className="h-4 w-5/6 bg-muted-foreground/20 rounded"></div>
+                                                </div>
+                                                <div className="mt-4 grid grid-cols-2 gap-2">
+                                                    <div className="h-8 bg-primary/20 rounded"></div>
+                                                    <div className="h-8 bg-primary/20 rounded"></div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </section>
+                        <section id="features" ref= {featuresRef} className="w-full py-12 md:py-24 lg:py-32">
+                            <div className="container px-4 md:px-6">
+                                <h2
+                                    className="text-3xl font-bold tracking-tighter sm:text-5xl text-center mb-12">
+                Features</h2>
+                                <div className="grid gap-10 sm:grid-cols-2 lg:grid-cols-3">
+                                    <div
+                                        className="flex flex-col items-center space-y-4 text-center">
+                                        <div className="p-4 bg-primary/10 rounded-full">
+                                            <Icons.book className="h-10 w-10 text-primary" />
+                                        </div>
+                                        <h3 className="text-xl font-bold">Multi-format Document
+                Support</h3>
+                                        <p className="text-muted-foreground">Read PDF and EPUB files
+                within the app with a smooth, integrated viewing experience.</p>
+                                    </div>
+                                    <div
+                                        className="flex flex-col items-center space-y-4 text-center">
+                                        <div className="p-4 bg-primary/10 rounded-full">
+                                            <Icons.languages className="h-10 w-10 text-primary" />
+                                        </div>
+                                        <h3 className="text-xl font-bold">Language Learning on the
+                Fly</h3>
+                                        <p className="text-muted-foreground">Generate translations
+                and create language flashcards instantly as you read.</p>
+                                    </div>
+                                    <div
+                                        className="flex flex-col items-center space-y-4 text-center">
+                                        <div className="p-4 bg-primary/10 rounded-full">
+                                            <Icons.flashcard className="h-10 w-10 text-primary" />
+                                        </div>
+                                        <h3 className="text-xl font-bold">Dynamic Flashcard Creation</h3>
+                                        <p className="text-muted-foreground">Generate customizable
+                flashcards from selected text as you read for personalized learning.</p>
+                                    </div>
+                                    <div
+                                        className="flex flex-col items-center space-y-4 text-center">
+                                        <div className="p-4 bg-primary/10 rounded-full">
+                                            <Icons.chat className="h-10 w-10 text-primary" />
+                                        </div>
+                                        <h3 className="text-xl font-bold">Contextual Explanations</h3>
+                                        <p className="text-muted-foreground">Get instant
+                explanations for complex concepts and discuss content with AI-powered chat.</p>
+                                    </div>
+                                    <div
+                                        className="flex flex-col items-center space-y-4 text-center">
+                                        <div className="p-4 bg-primary/10 rounded-full">
+                                            <Icons.brain className="h-10 w-10 text-primary" />
+                                        </div>
+                                        <h3 className="text-xl font-bold">Active Recall Learning</h3>
+                                        <p className="text-muted-foreground">Review generated
+                flashcards with a spaced repetition system for optimized learning and retention.</p>
+                                    </div>
+                                    <div
+                                        className="flex flex-col items-center space-y-4 text-center">
+                                        <div className="p-4 bg-primary/10 rounded-full">
+                                            <Icons.integrate className="h-10 w-10 text-primary" />
+                                        </div>
+                                        <h3 className="text-xl font-bold">Seamless Integration</h3>
+                                        <p className="text-muted-foreground">Switch effortlessly
+                between reading and learning modes while maintaining context.</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </section>
+                        <section id="about" ref= {aboutRef}
+                            className="w-full py-12 md:py-24 lg:py-32 bg-muted">
+                            <div className="container px-4 md:px-6">
+                                <h2
+                                    className="text-3xl font-bold tracking-tighter sm:text-5xl text-center mb-12">About
+                Recall AI</h2>
+                                <div className="max-w-3xl mx-auto space-y-6">
+                                    <p className="text-xl text-muted-foreground">
+                                        Recall AI is an innovative reading and learning application
+                designed to enhance your knowledge acquisition and retention while reading digital
+                documents.
+                                    </p>
+                                    <p className="text-muted-foreground">
+                                        Our mission is to transform passive reading into an active,
+                engaging learning experience. By allowing users to interact with content in
+                real-time, create personalized learning materials, and reinforce their knowledge
+                through active recall, Recall AI helps users to not just read, but truly absorb and
+                retain information from their digital documents.
+                                    </p>
+                                    <p className="text-muted-foreground">
+                                        Whether you're a student studying for exams, a professional
+                staying up-to-date in your field, or a lifelong learner exploring new subjects,
+                Recall AI provides the tools you need to maximize your learning efficiency and
+                effectiveness.
+                                    </p>
+                                    <h3 className="text-2xl font-bold mt-8 mb-4">Our Team</h3>
+                                    <p className="text-muted-foreground">
+                                        Recall AI was founded by a team of passionate educators,
+                technologists, and lifelong learners. We combine expertise in cognitive science,
+                artificial intelligence, and user experience design to create a tool that truly
+                enhances the learning process.
+                                    </p>
+                                    <h3 className="text-2xl font-bold mt-8 mb-4">Our Technology</h3>
+                                    <p className="text-muted-foreground">
+                                        Recall AI leverages cutting-edge AI technologies to provide
+                features like instant translations, contextual explanations, and dynamic flashcard
+                creation. We're constantly innovating to bring you the best learning experience
+                possible.
+                                    </p>
+                                </div>
+                            </div>
+                        </section>
+                        <section className="w-full py-12 md:py-24 lg:py-32 bg-muted">
+                            <div className="container px-4 md:px-6">
+                                <h2
+                                    className="text-3xl font-bold tracking-tighter sm:text-4xl md:text-5xl text-center mb-12">
+                Powered by AI
+                                </h2>
+                                <div
+                                    className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-8 place-items-center">
+                                    <Icons.openai className="h-16 w-16 text-[#412991]" />
+                                    <Icons.claude className="h-16 w-16 text-[#7C3AED]" />
+                                </div>
+                            </div>
+                        </section>
+                        <section id="contact" ref= {contactRef} className="w-full py-12 md:py-24 lg:py-32">
+                            <div className="container px-4 md:px-6">
+                                <h2
+                                    className="text-3xl font-bold tracking-tighter sm:text-5xl text-center mb-12">Contact
+                Us</h2>
+                                <div className="max-w-2xl mx-auto space-y-6">
+                                    <p className="text-xl text-muted-foreground text-center mb-8">
+                Have questions or feedback? We'd love to hear from you. Fill out the form below and
+                we'll get back to you as soon as possible.
+                                    </p>
+                                    <form className="space-y-4">
+                                        <div className="grid grid-cols-2 gap-4">
+                                            <div className="space-y-2">
+                                                <label htmlFor="first-name"
+                                                    className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">First
+                name</label>
+                                                <Input id="first-name"
+                                                    placeholder="Enter your first name" />
+                                            </div>
+                                            <div className="space-y-2">
+                                                <label htmlFor="last-name"
+                                                    className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">Last
+                name</label>
+                                                <Input id="last-name"
+                                                    placeholder="Enter your last name" />
+                                            </div>
+                                        </div>
+                                        <div className="space-y-2">
+                                            <label htmlFor="email"
+                                                className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                Email</label>
+                                            <Input id="email" placeholder="Enter your email"
+                                                type="email" />
+                                        </div>
+                                        <div className="space-y-2">
+                                            <label htmlFor="message"
+                                                className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                Message</label>
+                                            <Textarea id="message" placeholder="Enter your message" />
+                                        </div>
+                                        <Button type="submit" className="w-full">Send Message</Button>
+                                    </form>
+                                </div>
+                            </div>
+                        </section>
+                    </main>
+                    <footer className="border-t bg-background">
+                        <div
+                            className="container flex flex-col gap-2 sm:flex-row py-6 w-full shrink-0 items-center px-4 md:px-6">
+                            <p className="text-xs text-muted-foreground">© 2023 Recall AI. All
+                rights reserved.</p>
+                            <nav className="sm:ml-auto flex gap-4 sm:gap-6">
+                                <Link className="text-xs hover:underline underline-offset-4"
+                                    href="#">
+                                    Terms of Service
+                                </Link>
+                                <Link className="text-xs hover:underline underline-offset-4"
+                                    href="#">
+                                    Privacy
+                                </Link>
+                            </nav>
+                        </div>
+                    </footer>
+                </div>
+                ) }             </document_content>
+        </document>
+        <document index="8">
+            <source>app/signin/page.tsx</source>
+            <document_content> 'use client' import { signIn } from 'next-auth/react' import { Button
+                } from '@/components/ui/button' import { Icons } from '@/components/ui/icons' import
+                { CardTitle } from '@/components/ui/card' import Link from 'next/link' export
+                default function SignIn() { const handleSignIn = (provider: string) => {
+                signIn(provider, { callbackUrl: '/main' }) } return ( <div
+                    className="flex min-h-screen bg-background relative overflow-hidden">
+                    <div
+                        className="absolute inset-0 bg-gradient-to-r from-blue-500 to-teal-500 opacity-20 blur-3xl"></div>
+                    <div
+                        className="flex flex-col justify-center w-full px-4 py-12 sm:px-6 lg:flex-none lg:px-20 xl:px-24 relative z-10">
+                        <div
+                            className="w-full max-w-sm mx-auto lg:w-96 bg-white/80 backdrop-blur-sm rounded-lg shadow-lg p-8">
+                            <div className="flex justify-center mb-8">
+                                <Link href="/" className="flex items-center space-x-2">
+                                    <Icons.mainIcon className="w-8 h-8" />
+                                    <span
+                                        className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-500 to-pink-500">Recall
+                AI</span>
+                                </Link>
+                            </div>
+                            <div className="text-center mb-8">
+                                <CardTitle className="text-2xl font-semibold text-center">Sign in to
+                your account</CardTitle>
+                                <p className="mt-2 text-sm text-muted-foreground"> Don't have an
+                account?{" "} <Link href="/signup"
+                                        className="font-medium text-primary hover:underline">
+                                        Sign up
+                                    </Link>
+                                </p>
+                            </div>
+                            <div className="space-y-6">
+                                <div className="grid grid-cols-1 gap-4">
+                                    <Button
+                                        onClick= {()=> handleSignIn('google')} variant="outline"
+                className="w-full bg-white/90 hover:bg-white/95 text-gray-800 border-gray-300" > <Icons.google
+                                            className="w-4 h-4 mr-2" /> Sign in with Google </Button>
+                                    <Button
+                                        onClick= {()=> handleSignIn('github')} variant="outline"
+                className="w-full bg-white/90 hover:bg-white/95 text-gray-800 border-gray-300" > <Icons.github
+                                            className="w-4 h-4 mr-2" /> Sign in with GitHub </Button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div className="relative flex-1 hidden w-0 lg:block">
+                        <div
+                            className="absolute inset-0 bg-gradient-to-r from-blue-500 to-teal-500 opacity-20 blu.eca3xl"></div>
+                    </div>
+                </div>
+                ) } </document_content>
+        </document>
+        <document index="9">
+            <source>app/slices/fileSlice.ts</source>
+            <document_content> import { createSlice, PayloadAction } from '@reduxjs/toolkit';
+                interface FileState { currentFile: File | null; recentFiles: Array<{ name: string; progress: number }>; } const
+                initialState: FileState = { currentFile: null, recentFiles: [], }; const fileSlice =
+                createSlice({ name: 'file', initialState, reducers: { setCurrentFile: (state,
+                action: PayloadAction<File | null>) => { state.currentFile = action.payload; },
+                addRecentFile: (state, action: PayloadAction<{ name: string; progress: number }>) => { state.recentFiles = [
+                action.payload, ...state.recentFiles.filter(f => f.name !==
+                action.payload.name).slice(0, 4) ]; }, }, }); export const { setCurrentFile,
+                addRecentFile } = fileSlice.actions; export default fileSlice.reducer;             </document_content>
+        </document>
+        <document index="10">
+            <source>app/slices/flashcardsSlice.ts</source>
+            <document_content> import { createSlice, PayloadAction } from '@reduxjs/toolkit';
+                interface Flashcard { id: number; type: 'FLASHCARD' | 'LANGUAGE'; question?: string;
+                answer?: string; word?: string; translation?: string; example?: string;
+                explanation?: string; notes?: string; lastReviewed?: string; status: 'NEW' |
+                'LEARNING' | 'MASTERED'; categoryId?: number; userId: string; createdAt: string;
+                updatedAt: string; } const initialState: Flashcard[] = []; const flashcardsSlice =
+                createSlice({ name: 'flashcards', initialState, reducers: { addFlashcard: (state,
+                action: PayloadAction<Flashcard>) => { state.push(action.payload); },
+                removeFlashcard: (state, action: PayloadAction<number>) => { return
+                state.filter(card => card.id !== action.payload); }, clearFlashcards: (state) => {
+                return []; }, }, }); export const { addFlashcard, removeFlashcard, clearFlashcards }
+                = flashcardsSlice.actions; export default flashcardsSlice.reducer;             </document_content>
+        </document>
+        <document index="11">
+            <source>app/slices/languageCardsSlice.ts</source>
+            <document_content> import { createSlice, PayloadAction } from '@reduxjs/toolkit';
+                interface LanguageCard { id: number; word: string; translation: string; example:
+                string; explanation: string; categoryId?: number; status: 'NEW' | 'LEARNING' |
+                'MASTERED'; notes?: string; lastReviewed?: string; userId: string; createdAt:
+                string; updatedAt: string; } const initialState: LanguageCard[] = []; const
+                languageCardsSlice = createSlice({ name: 'languageCards', initialState, reducers: {
+                addLanguageCard: (state, action: PayloadAction<LanguageCard>) => {
+                state.push(action.payload); }, removeLanguageCard: (state, action: PayloadAction<number>)
+                => { return state.filter(card => card.id !== action.payload); }, clearLanguageCards:
+                (state) => { return []; }, }, }); export const { addLanguageCard,
+                removeLanguageCard, clearLanguageCards } = languageCardsSlice.actions; export
+                default languageCardsSlice.reducer;             </document_content>
+        </document>
+        <document index="12">
+            <source>app/slices/settingsSlice.ts</source>
+            <document_content> import { createSlice, PayloadAction } from '@reduxjs/toolkit'; import
+                { DEFAULT_PROMPTS, DEFAULT_MODEL } from '@/utils/config'; export interface
+                SettingsState { apiKey: string; selectedModel: string; customPrompts: { flashcard:
+                string; explain: string; language: string; }; } const initialState: SettingsState =
+                { apiKey: '', selectedModel: DEFAULT_MODEL, customPrompts: DEFAULT_PROMPTS, }; const
+                settingsSlice = createSlice({ name: 'settings', initialState, reducers: { setApiKey:
+                (state, action: PayloadAction<string>) => { state.apiKey = action.payload; },
+                setSelectedModel: (state, action: PayloadAction<string>) => { state.selectedModel =
+                action.payload; }, setCustomPrompts: (state, action: PayloadAction<SettingsState ['customPrompts' ]>)
+                => { state.customPrompts = action.payload; }, }, }); export const { setApiKey,
+                setSelectedModel, setCustomPrompts } = settingsSlice.actions; export default
+                settingsSlice.reducer;             </document_content>
+        </document>
+        <document index="13">
+            <source>app/store.ts</source>
+            <document_content> import { configureStore, ThunkAction, Action } from
+                '@reduxjs/toolkit'; import flashcardsReducer from './slices/flashcardsSlice'; import
+                languageCardsReducer from './slices/languageCardsSlice'; import settingsReducer from
+                './slices/settingsSlice'; import fileReducer from './slices/fileSlice'; export const
+                store = configureStore({ reducer: { flashcards: flashcardsReducer, languageCards:
+                languageCardsReducer, settings: settingsReducer, file: fileReducer, }, }); export
+                type RootState = ReturnType<typeof store.getState>; export type AppDispatch = typeof
+                store.dispatch; export type AppThunk<ReturnType = void> = ThunkAction<
+    ReturnType ,
+                    RootState,
+                    unknown,
+                    Action<string> >;             </document_content>
+        </document>
+        <document index="14">
+            <source>components/Cards/Card.tsx</source>
+            <document_content> import React from 'react'; import { Card, CardContent } from
+                "@/components/ui/card"; import { Button } from "@/components/ui/button"; import { X
+                } from "lucide-react"; interface CardProps { title?: string; subtitle?: string;
+                content: React.ReactNode; onRemove: () => void; isFlipped?: boolean; onFlip?: () =>
+                void; } const GenericCard: React.FC<CardProps> = ({ title, subtitle, content,
+                onRemove, isFlipped, onFlip, }) => { const handleClick = (e: React.MouseEvent) => {
+                if (!(e.target as HTMLElement).closest('button') && onFlip) { onFlip(); } }; return
+                ( <Card
+                    className= {`bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-lg shadow-sm hover:shadow-md transition-shadow duration-200 ${onFlip ? 'cursor-pointer' : ''} ${isFlipped ? 'bg-blue-50 dark:bg-blue-900' : ''}`}
+            onClick={handleClick}
+        >
+                    <CardContent className="p-3 relative">
+                        <Button
+                            variant="ghost"
+                            size="icon"
+                            className="absolute top-0.5 right-0.5 text-neutral-500 hover:text-red-500 dark:text-neutral-400 dark:hover:text-red-400 z-10"
+                            onClick= {(e)=> { e.stopPropagation(); onRemove(); }} > <X
+                                className="h-3 w-3" />
+                        </Button>
+                        <div className="text-sm space-y-1"> {title && ( <div
+                                className="flex items-baseline flex-wrap">
+                                <h3
+                                    className="text-lg font-bold text-neutral-900 dark:text-neutral-100 mr-2">
+                {title}
+                                </h3>
+                {subtitle && ( <p className="text-blue-600 dark:text-blue-400 text-sm">
+                                    {subtitle}
+                                </p>
+                )} </div> )} <div>{content}</div>
+                        </div>
+                    </CardContent>
+                </Card>
+                ); }; export default GenericCard;             </document_content>
+        </document>
+        <document index="15">
+            <source>components/Cards/CardCollection.tsx</source>
+            <document_content> import React from 'react'; import GenericCard from './Card';
+                interface CardCollectionProps<T> { cards: T[]; renderCard: (card: T, index: number)
+                => React.ReactNode; onAddCard: () => void; onClearCollection: () => void; } export
+                function CardCollection<T>({ cards, renderCard, onAddCard, onClearCollection }:
+                CardCollectionProps<T>) { return ( <div className="flex flex-col h-full">
+                    <div className="flex-grow overflow-y-auto pr-2">
+                        <div className="space-y-1">
+                            {cards.map((card, index) => renderCard(card, index))}
+                        </div>
+                    </div>
+                {cards.length > 0 && ( <div
+                        className="flex justify-between mt-3 pt-2 border-t border-gray-200 dark:border-gray-700">
+                        <button onClick= {onAddCard}
+                            className="flex items-center bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 transition">
+                Add Card
+                        </button>
+                        <button onClick= {onClearCollection}
+                            className="flex items-center bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600 transition">
+                Clear
+                        </button>
+                    </div>
+                )} </div> ); }             </document_content>
+        </document>
+        <document index="16">
+            <source>components/Cards/Flashcard.tsx</source>
+            <document_content> import React, { useState } from 'react'; import GenericCard from
+                './Card'; import { createMarkup } from '@/utils/createMarkup'; interface
+                FlashcardProps { question: string; answer: string; onRemove: () => void; } export
+                function Flashcard({ question, answer, onRemove }: FlashcardProps) { const
+                [isFlipped, setIsFlipped] = useState(false); return ( <GenericCard
+                    onRemove= {onRemove}
+                    isFlipped= {isFlipped}
+                    onFlip= {()=> setIsFlipped(!isFlipped)} content={ <>
+                    <p
+                        className= {`${isFlipped ? 'hidden' : 'block'} text-neutral-900 dark:text-neutral-100 break-words`}
+                        dangerouslySetInnerHTML={createMarkup(question)}
+                    />
+                    <p
+                        className= {`${isFlipped ? 'block' : 'hidden'} text-blue-800 dark:text-blue-200 break-words font-medium`}
+                        dangerouslySetInnerHTML={createMarkup(answer)}
+                    />
+                </> } /> ); }             </document_content>
+        </document>
+        <document index="17">
+            <source>components/Cards/LanguageCard.tsx</source>
+            <document_content> import React from 'react'; import GenericCard from './Card'; import {
+                createMarkup } from '@/utils/createMarkup'; interface LanguageCardProps { word:
+                string; translation: string; example: string; explanation: string; onRemove: () =>
+                void; } export function LanguageCard({ word, translation, example, explanation,
+                onRemove, }: LanguageCardProps) { return ( <GenericCard
+                    title= {word}
+                    subtitle= {`(${translation})`}
+                    content= {
+                <>
+                    <p
+                        className="text-neutral-700 dark:text-neutral-300 text-xs break-words italic"
+                        dangerouslySetInnerHTML= {createMarkup(example)}
+                    />
+                    <p
+                        className="text-green-800 dark:text-green-200 text-xs break-words"
+                        dangerouslySetInnerHTML= {createMarkup(explanation)}
+                    />
+                </> } onRemove={onRemove} /> ); }             </document_content>
+        </document>
+        <document index="18">
+            <source>components/Cards/index.tsx</source>
+            <document_content>
+                export { Flashcard } from './Flashcard';
+                export { LanguageCard } from './LanguageCard';
+                export { CardCollection } from './CardCollection';
+</document_content>
+        </document>
+        <document index="19">
+            <source>components/MainInterface/FileViewer.tsx</source>
+            <document_content> import React, { useState, useEffect, useCallback, useRef } from
+                'react'; import { Upload } from 'lucide-react'; import { Input } from
+                '@/components/ui/input'; import { useToast } from '@/components/ui/use-toast';
+                import { Viewer, Worker, SpecialZoomLevel } from '@react-pdf-viewer/core'; import {
+                defaultLayoutPlugin } from '@react-pdf-viewer/default-layout'; import { ReactReader
+                } from "react-reader"; import '@react-pdf-viewer/core/lib/styles/index.css'; import
+                '@react-pdf-viewer/default-layout/lib/styles/index.css'; interface FileViewerProps {
+                currentFile: File | null; onFileUpload: (event: React.ChangeEvent<HTMLInputElement>)
+                => void; onTextSelect: (selectedText: string) => void; onWordDoubleClick: (word:
+                string) => void; recentFiles: Array<{ name: string; progress: number }>; onRecentFileClick: (fileName: string) => void;
+                } // PDF Viewer Component interface PDFViewerProps { file: string | null;
+                onLoadSuccess: (numPages: number) => void; } const PDFViewer: React.FC<PDFViewerProps>
+                = ({ file, onLoadSuccess }) => { const defaultLayoutPluginInstance =
+                defaultLayoutPlugin({ sidebarTabs: (defaultTabs) => [defaultTabs[0]], }); if (!file)
+                { return <div className="flex items-center justify-center h-full">No PDF file
+                selected</div>; } return ( <div className="h-full w-full">
+                    <Worker workerUrl= {`https:// unpkg.com/ pdfjs-dist@3.11.174/ build/ pdf.worker.min.js`}>
+                        <Viewer
+                            fileUrl= {file}
+                            plugins= {[defaultLayoutPluginInstance]}
+                            onDocumentLoad= {(e)=> onLoadSuccess(e.doc.numPages)}
+                defaultScale={SpecialZoomLevel.PageFit}
+                        />
+                    </Worker>
+                </div>
+                ); }; // EPUB Viewer Component interface EpubViewerProps { url: string; location:
+                string | number; setLocation: (location: string) => void; } const EpubViewer:
+                React.FC<EpubViewerProps> = ({ url, location, setLocation }) => { return ( <div
+                    style= {{ height: "100%" , position: "relative" }}>
+                    <ReactReader
+                        url= {url}
+                        location= {location}
+                        locationChanged= {(epubcfi: string)=> setLocation(epubcfi)}
+                    epubOptions={{
+                    allowPopups: true,
+                    allowScriptedContent: true,
+                    }}
+                    epubInitOptions={{
+                    openAs: 'epub',
+                    }}
+                    />
+                </div> ); }; // export const
+                FileViewer: React.FC<FileViewerProps> = ({ currentFile, onFileUpload, onTextSelect,
+                onWordDoubleClick }) => { export const FileViewer: React.FC<FileViewerProps> = ({
+                currentFile, onFileUpload, onTextSelect, onWordDoubleClick, recentFiles,
+                onRecentFileClick }) => { const [fileContent, setFileContent] = useState<string>('');
+                const [loadingNewPdf, setLoadingNewPdf] = useState(false); const [numPages,
+                setNumPages] = useState<number | null>(null); const [pdfKey, setPdfKey] = useState(0);
+                const [epubLocation, setEpubLocation] = useState<string | number>(0); const prevFileUrl =
+                React.useRef<string | null>(null); const { toast } = useToast(); const fileContainerRef =
+                useRef<HTMLDivElement>(null); const handleTextSelection = useCallback((event:
+                MouseEvent) => { if (currentFile && (currentFile.type === 'application/pdf' ||
+                currentFile.type === 'application/epub+zip')) { const selection =
+                window.getSelection(); if (selection &&
+                fileContainerRef.current?.contains(selection.anchorNode)) { const selectedText =
+                selection.toString().trim(); if (selectedText) { if (event.detail === 2) { // Double
+                click onWordDoubleClick(selectedText); } else { onTextSelect(selectedText); } } } }
+                }, [currentFile, onTextSelect, onWordDoubleClick]); useEffect(() => { if
+                (currentFile && (currentFile.type === 'application/pdf' || currentFile.type ===
+                'application/epub+zip')) { document.addEventListener('mouseup',
+                handleTextSelection); return () => { document.removeEventListener('mouseup',
+                handleTextSelection); }; } }, [currentFile, handleTextSelection]); useEffect(() => {
+                if (currentFile) { setLoadingNewPdf(true); if (currentFile.type === 'text/plain') {
+                const reader = new FileReader(); reader.onload = (e) => { const content =
+                e.target?.result as string; setFileContent(content); setLoadingNewPdf(false); };
+                reader.readAsText(currentFile); } else if (currentFile.type === 'application/pdf') {
+                prevFileUrl.current = URL.createObjectURL(currentFile); setPdfKey((prevKey) =>
+                prevKey + 1); } else if (currentFile.type === 'application/epub+zip') {
+                prevFileUrl.current = URL.createObjectURL(currentFile); setEpubLocation(0);
+                setLoadingNewPdf(false); toast({ title: 'EPUB Notice', description: `EPUB needs to
+                be DRM-free. If content doesn't show, use tools like Calibre to convert EPUB to
+                EPUB.`, }); } else { setFileContent(''); setLoadingNewPdf(false); } } },
+                [currentFile, toast]); const renderFileContent = () => { if (!currentFile) { return
+                ( <div className="flex flex-col items-center justify-center h-full">
+                    <Input
+                        type="file"
+                        onChange= {onFileUpload}
+                        className="hidden"
+                        id="file-upload"
+                        accept=".pdf,.txt,.epub"
+                    />
+                    <label
+                        htmlFor="file-upload"
+                        className="flex flex-col items-center justify-center w-64 h-64 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer hover:border-gray-400 transition-colors duration-200"
+                    >
+                        <Upload className="w-12 h-12 text-gray-400" />
+                        <span className="mt-2 text-sm text-gray-500">Choose a file or drag it here</span>
+                    </label>
+                {recentFiles.length > 0 && ( <div className="mt-8">
+                        <h3 className="text-lg font-semibold mb-2">Recent Files</h3>
+                        <ul className="space-y-2"> {recentFiles.map((file, index) => ( <li key= {index}>
+                                <button
+                                    onClick= {()=> onRecentFileClick(file.name)}
+                className="text-blue-500 hover:underline"
+                                    >
+                                    {file.name}
+                                </button>
+                            </li>
+                ))} </ul>
+                    </div> )} </div> ); } switch (currentFile.type) { case
+                'text/plain': return ( <div className="bg-white p-4 rounded shadow-inner">
+                    <pre className="whitespace-pre-wrap">{fileContent}</pre>
+                </div> ); case
+                'application/pdf': return ( <div className="h-full w-full">
+                    <div ref= {fileContainerRef} className="h-full w-full">
+                        <PDFViewer
+                            file= {prevFileUrl.current}
+                            onLoadSuccess= {(numPages)=> {
+                        setNumPages(numPages);
+                        setLoadingNewPdf(false);
+                        }}
+                        />
+                    </div>
+                </div>
+                ); case 'application/epub+zip': return ( <div className="h-full w-full">
+                    <div ref= {fileContainerRef} className="h-full w-full">
+                        <EpubViewer
+                            url= {prevFileUrl.current!}
+                            location= {epubLocation}
+                            setLocation= {(location: string)=> setEpubLocation(location)}
+                        />
+                    </div>
+                </div>
+                ); default: return <p>Unsupported file type</p>; } }; return ( <div
+                    className="bg-gray-100 h-full flex flex-col items-center justify-center">
+                {renderFileContent()}
+                </div> ); }; export { PDFViewer,
+                EpubViewer };             </document_content>
+        </document>
+        <document index="20">
+            <source>components/MainInterface/MainInterface.tsx</source>
+            <document_content> 'use client' import React, { useState, useEffect, useCallback, useRef
+                } from "react" import { Settings } from "lucide-react" import { Button } from
+                "@/components/ui/button" import { Dialog, DialogContent, DialogHeader, DialogTitle }
+                from "@/components/ui/dialog" import { useToast } from "@/components/ui/use-toast"
+                import { CardCollection, Flashcard, LanguageCard } from "@/components/Cards" import
+                { FileViewer } from "./FileViewer" import { Sidebar } from "./Sidebar" import {
+                TopSidebar } from "./TopSidebar" import { SettingsDialog } from "./SettingsDialog"
+                import { useRouter } from 'next/navigation' import { useSelector, useDispatch } from
+                'react-redux' import { RootState } from '@/app/store' import { setCurrentFile,
+                addRecentFile } from '@/app/slices/fileSlice' import { setApiKey, setSelectedModel,
+                setCustomPrompts, SettingsState } from '@/app/slices/settingsSlice' import {
+                DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, } from
+                "@/components/ui/dropdown-menu" import SignOutButton from
+                "@/components/common/SignOutButton" import { handleGenerateContent } from
+                "@/utils/contentUtils" export function MainInterface() { const [mode, setMode] =
+                useState<"language" | "flashcard" | "explain">("language") const [languageSubMode, setLanguageSubMode] = useState<"english" | "french">("english")
+                const [settingsOpen, setSettingsOpen] = useState(false) const [explanation,
+                setExplanation] = useState("") const [selectedText, setSelectedText] = useState("")
+                const fileViewerRef = useRef<HTMLDivElement>(null) const dispatch = useDispatch()
+                const { currentFile, recentFiles } = useSelector((state: RootState) => state.file);
+                const { apiKey, selectedModel, customPrompts } = useSelector((state: RootState) =>
+                state.settings) const { toast } = useToast() const router = useRouter() useEffect(()
+                => { const storedApiKey = localStorage.getItem("apiKey") if (storedApiKey)
+                dispatch(setApiKey(storedApiKey)) const handleSelectionChange = () => { const
+                selection = window.getSelection() if (selection) { const newSelectedText =
+                selection.toString().trim() if (newSelectedText) { setSelectedText(newSelectedText)
+                } } } document.addEventListener('selectionchange', handleSelectionChange) return ()
+                => { document.removeEventListener('selectionchange', handleSelectionChange) } },
+                [dispatch]) const handleContentGeneration = useCallback(async (text: string) => {
+                return handleGenerateContent(text, mode, customPrompts, languageSubMode, apiKey,
+                selectedModel, dispatch, setExplanation) }, [mode, customPrompts, languageSubMode,
+                apiKey, selectedModel, dispatch, setExplanation]) const handleWordDoubleClick =
+                useCallback((word: string) => { if (mode === "language") {
+                handleContentGeneration(word); } }, [mode, handleContentGeneration]) const
+                handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => { const file =
+                event.target.files?.[0] if (file) { dispatch(setCurrentFile(file))
+                dispatch(addRecentFile({ name: file.name, progress: 0 })) } } const
+                handleRecentFileClick = useCallback((fileName: string) => { // Here you would
+                typically load the file content // For now, we'll just update the currentFile state
+                const file = new File([""], fileName, { type: "application/octet-stream" });
+                dispatch(setCurrentFile(file)); toast({ title: "Recent file selected", description:
+                `Loading ${fileName}...`, }); // You might want to add logic here to actually load
+                the file content }, [dispatch, toast]); const handleSettingsClick = () =>
+                setSettingsOpen(true); const handleDashboardClick = () => router.push('/dashboard');
+                return ( <div className="flex flex-col h-screen" tabIndex= {0}>
+                    <div className="flex flex-1 overflow-hidden">
+                        <div className="flex-grow overflow-auto mr-4" ref= {fileViewerRef}>
+                            <FileViewer
+                                currentFile= {currentFile}
+                                onFileUpload= {handleFileUpload}
+                                onTextSelect= {setSelectedText}
+                                onWordDoubleClick= {handleWordDoubleClick}
+                                recentFiles= {recentFiles}
+                                onRecentFileClick= {handleRecentFileClick}
+                            />
+                        </div>
+                        <Sidebar
+                            mode= {mode}
+                            setMode= {setMode}
+                            languageSubMode= {languageSubMode}
+                            setLanguageSubMode= {setLanguageSubMode}
+                            handleGenerateContent= {()=> handleContentGeneration(selectedText)}
+                handleFileUpload={handleFileUpload}
+                        explanation={explanation}
+                        setExplanation={setExplanation}
+                        />
+                        <TopSidebar />
+                    </div>
+
+                    <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                            <Button
+                                className="absolute bottom-4 right-4 bg-white text-black border border-gray-300"
+                                size="icon">
+                                <Settings className="h-4 w-4" />
+                            </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end"
+                            className="w-auto min-w-[8rem] bg-white border border-gray-300">
+                            <DropdownMenuItem className="w-full text-black hover:bg-gray-100">
+                                <SignOutButton />
+                            </DropdownMenuItem>
+                            <DropdownMenuItem className="w-full text-black hover:bg-gray-100"
+                                onClick= {handleDashboardClick}>
+                                Dashboard
+                            </DropdownMenuItem>
+                            <DropdownMenuItem className="w-full text-black hover:bg-gray-100"
+                                onClick= {handleSettingsClick}>
+                                Settings
+                            </DropdownMenuItem>
+                        </DropdownMenuContent>
+                    </DropdownMenu>
+
+                    <SettingsDialog
+                        open= {settingsOpen}
+                        onOpenChange= {setSettingsOpen}
+                        setApiKey= {(value: string)=> dispatch(setApiKey(value))}
+                selectedModel={selectedModel}
+                    setSelectedModel={(value: string) => dispatch(setSelectedModel(value))}
+                customPrompts={customPrompts}
+                    setCustomPrompts={(value: SettingsState['customPrompts']) =>
+                dispatch(setCustomPrompts(value))}
+                    />
+
+                    {explanation && (
+                    <Dialog open= {!!explanation} onOpenChange= {()=> setExplanation("")}> <DialogContent
+                            className="sm:max-w-[425px]">
+                            <DialogHeader>
+                                <DialogTitle>Explanation</DialogTitle>
+                            </DialogHeader>
+                            <div className="mt-4" dangerouslySetInnerHTML= {{ __html: explanation }} />
+                        </DialogContent>
+                    </Dialog>
+                )}
+                </div> ); }             </document_content>
+        </document>
+        <document index="21">
+            <source>components/MainInterface/SettingsDialog.tsx</source>
+            <document_content> import React from "react" import { Dialog, DialogContent,
+                DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog" import
+                { Input } from "@/components/ui/input" import { Textarea } from
+                "@/components/ui/textarea" import { useSelector, useDispatch } from 'react-redux'
+                import { RootState } from '@/app/store' import { setApiKey, setSelectedModel,
+                setCustomPrompts } from '@/app/slices/settingsSlice' interface SettingsDialogProps {
+                open: boolean onOpenChange: (open: boolean) => void } export function
+                SettingsDialog({ open, onOpenChange, }: SettingsDialogProps) { const dispatch =
+                useDispatch() const { apiKey, selectedModel, customPrompts } = useSelector((state:
+                RootState) => state.settings) return ( <Dialog open= {open} onOpenChange= {onOpenChange}>
+                    <DialogContent
+                        className="sm:max-w-[800px] w-[95vw] max-h-[95vh] h-[800px] flex flex-col">
+                        <DialogHeader className="pb-4">
+                            <DialogTitle>Settings</DialogTitle>
+                            <DialogDescription>
+                                Configure your API key and customize prompts.
+                            </DialogDescription>
+                        </DialogHeader>
+                        <div className="flex-grow overflow-y-auto pr-6">
+                            <div className="grid gap-8 py-4">
+                                <div className="grid grid-cols-4 items-center gap-4">
+                                    <label htmlFor="api-key" className="text-right">
+                                        API Key
+                                    </label>
+                                    <Input
+                                        id="api-key"
+                                        value= {apiKey}
+                                        onChange= {(e)=> {
+                                    dispatch(setApiKey(e.target.value))
+                localStorage.setItem("apiKey", e.target.value)
+                                    }}
+                                    className="col-span-3"
+                                    />
+                                </div>
+                                <div className="grid grid-cols-4 items-center gap-4">
+                                    <label htmlFor="model" className="text-right">
+                                        Model
+                                    </label>
+                                    <select
+                                        id="model"
+                                        value= {selectedModel}
+                                        onChange= {(e)=>
+                dispatch(setSelectedModel(e.target.value))} className="col-span-3 p-2 border
+                border-neutral-200 rounded dark:border-neutral-800" > <option
+                                            value="claude-3-5-sonnet-20240620">Claude 3.5 Sonnet</option>
+                                <option
+                                            value="claude-3-haiku">Claude 3 Haiku</option>
+                                    </select>
+                                </div>
+                                <div className="grid grid-cols-4 items-start gap-4">
+                                    <label htmlFor="flashcard-prompt" className="text-right pt-2">
+                Flashcard Prompt
+                                    </label>
+                                    <Textarea
+                                        id="flashcard-prompt"
+                                        value= {customPrompts.flashcard}
+                                        onChange= {(e)=> dispatch(setCustomPrompts({
+                ...customPrompts, flashcard: e.target.value }))}
+                                    className="col-span-3 min-h-[150px]"
+                                    />
+                                </div>
+                                <div className="grid grid-cols-4 items-start gap-4">
+                                    <label htmlFor="explain-prompt" className="text-right pt-2">
+                Explain Prompt
+                                    </label>
+                                    <Textarea
+                                        id="explain-prompt"
+                                        value= {customPrompts.explain}
+                                        onChange= {(e)=> dispatch(setCustomPrompts({
+                ...customPrompts, explain: e.target.value }))}
+                                    className="col-span-3 min-h-[150px]"
+                                    />
+                                </div>
+                                <div className="grid grid-cols-4 items-start gap-4">
+                                    <label htmlFor="language-prompt" className="text-right pt-2">
+                Language Prompt
+                                    </label>
+                                    <Textarea
+                                        id="language-prompt"
+                                        value= {customPrompts.language}
+                                        onChange= {(e)=> dispatch(setCustomPrompts({
+                ...customPrompts, language: e.target.value }))}
+                                    className="col-span-3 min-h-[150px]"
+                                    />
+                                </div>
+                            </div>
+                        </div>
+                    </DialogContent>
+                </Dialog>
+                ) } </document_content>
+        </document>
+        <document index="22">
+            <source>components/MainInterface/Sidebar.tsx</source>
+            <document_content> import React, { useRef } from "react" import { Button } from
+                "@/components/ui/button" import { Input } from "@/components/ui/input" import {
+                CardCollection } from "@/components/Cards/CardCollection"; import { Flashcard } from
+                "@/components/Cards/Flashcard"; import { LanguageCard } from
+                "@/components/Cards/LanguageCard"; import { useSelector, useDispatch } from
+                'react-redux' import { RootState } from '@/app/store' import { removeFlashcard,
+                clearFlashcards } from '@/app/slices/flashcardsSlice' import { removeLanguageCard,
+                clearLanguageCards } from '@/app/slices/languageCardsSlice' import { useToast } from
+                '@/components/ui/use-toast'; interface SidebarProps { mode: "language" | "flashcard"
+                | "explain" setMode: React.Dispatch<React.SetStateAction<"language" | "flashcard" | "explain">> languageSubMode:
+                "english" | "french" setLanguageSubMode: React.Dispatch<React.SetStateAction<"english" | "french">>
+                handleGenerateContent: () => Promise<any> handleFileUpload: (event:
+                React.ChangeEvent<HTMLInputElement>) => void explanation: string setExplanation:
+                React.Dispatch<React.SetStateAction<string>> } export function Sidebar({ mode,
+                setMode, languageSubMode, setLanguageSubMode, handleGenerateContent,
+                handleFileUpload, explanation, setExplanation }: SidebarProps) { const
+                [sidebarWidth, setSidebarWidth] = React.useState(30) const sidebarRef = useRef<HTMLDivElement>(null)
+                const resizeHandleRef = useRef<HTMLDivElement>(null) const dispatch = useDispatch()
+                const flashcards = useSelector((state: RootState) => state.flashcards) const
+                languageCards = useSelector((state: RootState) => state.languageCards) const { toast
+                } = useToast(); const handleSaveCards = async () => { try { const cardsToSave = mode
+                === 'flashcard' ? flashcards : languageCards; if (cardsToSave.length === 0) {
+                toast({ title: "No cards to save", description: "Please generate some cards first.",
+                }); return; } const response = await fetch('/api/cards', { method: 'POST', headers:
+                { 'Content-Type': 'application/json', }, body: JSON.stringify({ type: mode, cards:
+                cardsToSave, }), }); if (response.ok) { const { count } = await response.json();
+                toast({ title: "Cards saved", description: `${count} card(s) have been saved to the
+                database.`, }); // Clear the cards from the Redux store if (mode === 'flashcard') {
+                dispatch(clearFlashcards()); } else if (mode === 'language') {
+                dispatch(clearLanguageCards()); } } else { throw new Error(`Failed to save cards
+                (${cardsToSave.length})`); } } catch (error) { console.error('Error saving cards:',
+                error); toast({ title: "Error", description: "Failed to save the cards. Please try
+                again.", variant: "destructive", }); } }; const handleMouseDown = (e:
+                React.MouseEvent) => { e.preventDefault() document.addEventListener("mousemove",
+                handleMouseMove) document.addEventListener("mouseup", handleMouseUp) } const
+                handleMouseMove = (e: MouseEvent) => { if (sidebarRef.current &&
+                resizeHandleRef.current) { const containerRect =
+                sidebarRef.current.parentElement?.getBoundingClientRect() if (containerRect) { const
+                newWidth = containerRect.right - e.clientX const newWidthPercentage = (newWidth /
+                containerRect.width) * 100 setSidebarWidth(Math.min(Math.max(newWidthPercentage,
+                20), 80)) } } } const handleMouseUp = () => {
+                document.removeEventListener("mousemove", handleMouseMove)
+                document.removeEventListener("mouseup", handleMouseUp) } return ( <div
+                    ref= {sidebarRef}
+                    className="flex flex-col bg-gray-50 overflow-hidden relative"
+                    style= {{ width: `${sidebarWidth}%`, minWidth: "200px" , maxWidth: "80%" }}
+                >
+                    <div className="flex-grow overflow-y-auto overflow-x-hidden p-4">
+                        <div className="space-y-4">
+                            <div className="grid grid-cols-3 gap-2">
+                                <Button
+                                    variant= {mode=== "language" ? "default" : "outline"}
+                            onClick={() => setMode("language")}
+                        >
+                            Language
+                        </Button>
+                                <Button
+                                    variant= {mode=== "flashcard" ? "default" : "outline"}
+                            onClick={() => setMode("flashcard")}
+                        >
+                            Flashcard
+                        </Button>
+                                <Button
+                                    variant= {mode=== "explain" ? "default" : "outline"}
+                            onClick={() => setMode("explain")}
+                        >
+                            Explain
+                        </Button>
+                            </div>
+                {mode === "language" && ( <CardCollection
+                                cards= {languageCards}
+                                renderCard= {(card, index)=> ( <LanguageCard
+                                key= {index}
+                                word= {card.word}
+                                translation= {card.translation}
+                                example= {card.example}
+                                explanation= {card.explanation}
+                                onRemove= {()=> dispatch(removeLanguageCard(index))} /> )}
+                onAddCard={handleSaveCards} onClearCollection={() => dispatch(clearLanguageCards())}
+                /> )} {mode === "flashcard" && ( <CardCollection
+                                cards= {flashcards}
+                                renderCard= {(card, index)=> ( <Flashcard
+                                key= {index}
+                                question= {card.question}
+                                answer= {card.answer}
+                                onRemove= {()=> dispatch(removeFlashcard(index))} /> )}
+                onAddCard={handleSaveCards} onClearCollection={() => dispatch(clearFlashcards())} />
+                )}         </div> {mode ===
+                "explain" && explanation && ( <div className="mt-4" dangerouslySetInnerHTML= {{ __html: explanation }} /> )} </div>
+
+                    <div className="p-4 border-t">
+                        <Button onClick= {handleGenerateContent} className="w-full">
+                            {mode === "flashcard" ? "Generate Flashcard" : mode === "explain" ?
+                "Generate Explanation" : `Translate to ${languageSubMode === "english" ? "English" :
+                "French"}`}
+                        </Button>
+                    </div>
+
+                    <div
+                        ref= {resizeHandleRef}
+                        className="w-2 bg-gray-300 hover:bg-gray-400 cursor-ew-resize absolute top-0 left-0 bottom-0 transition-colors"
+                        onMouseDown= {handleMouseDown}
+                    />
+
+                    <Input
+                        type="file"
+                        onChange= {handleFileUpload}
+                        className="hidden"
+                        id="file-upload"
+                        accept=".pdf,.txt,.epub"
+                    />
+                </div> ) }             </document_content>
+        </document>
+        <document index="23">
+            <source>components/MainInterface/TopSidebar.tsx</source>
+            <document_content> 'use client' import React from "react"; import { useRouter } from
+                "next/navigation"; import { Button } from "@/components/ui/button"; import {
+                DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, } from
+                "@/components/ui/dropdown-menu"; import { LayoutDashboard, Dumbbell, User } from
+                "lucide-react"; export function TopSidebar() { const router = useRouter(); const
+                SidebarButton = ({ icon, label, onClick, dropdown }) => { const ButtonContent = ( <Button
+                    variant="default"
+                    className="w-12 h-12 p-2 flex justify-center items-center bg-black/70 hover:bg-gray-100 relative group"
+                    onClick= {dropdown ? undefined : onClick}
+            >
+                {React.cloneElement(icon, { className: "h-4 w-4 flex-shrink-0" })}
+                    <span
+                        className="absolute left-full ml-2 px-2 py-1 bg-gray-800 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap">
+                {label}
+                    </span>
+                </Button> );
+                return dropdown ? ( <DropdownMenuTrigger asChild>{ButtonContent}</DropdownMenuTrigger> ) : (
+                ButtonContent ); }; const handleDashboardClick = () => { router.push('/dashboard');
+                }; return ( <div
+                    className="fixed left-0 top-0 bottom-0 w-12 flex items-center justify-center z-50">
+                    <div className="bg-black/10 py-2 rounded-lg">
+                        <div className="space-y-2">
+                            <SidebarButton
+                                icon= {
+                            <LayoutDashboard />}
+                            label="Dashboard"
+                            onClick={handleDashboardClick}
+                            />
+                            <SidebarButton
+                                icon= {
+                            <Dumbbell />}
+                            label="Practice"
+                            onClick={() => console.log("Practice clicked")}
+                            />
+                            <DropdownMenu>
+                                <SidebarButton icon= {
+                                <User />} label="Profile" dropdown={true} />
+                                <DropdownMenuContent align="end">
+                                    <DropdownMenuItem onSelect= {()=> console.log("Profile
+                selected")}>Profile</DropdownMenuItem>
+                                    <DropdownMenuItem onSelect= {()=> console.log("Settings
+                selected")}>Settings</DropdownMenuItem>
+                                    <DropdownMenuItem onSelect= {()=> console.log("Sign out
+                selected")}>Sign out</DropdownMenuItem>
+                                </DropdownMenuContent>
+                            </DropdownMenu>
+                        </div>
+                    </div>
+                </div>
+                ); } </document_content>
+        </document>
+        <document index="24">
+            <source>components/Layout/Providers.tsx</source>
+            <document_content> 'use client'; import { Provider } from 'react-redux'; import {
+                SessionProvider } from "next-auth/react"; import { store } from '@/app/store';
+                export function Providers({ children }: { children: React.ReactNode }) { return ( <Provider
+                    store= {store}>
+                    <SessionProvider>
+                        {children}
+                    </SessionProvider>
+                </Provider>
+                ); } </document_content>
+        </document>
+        <document index="25">
+            <source>components/Layout/index.tsx</source>
+            <document_content>
+                export { Providers } from './Providers';
+                export { Sidebar } from './Sidebar';
+                export { TopSidebar } from './TopSidebar';
+                export { SettingsDialog } from './SettingsDialog';
+
+            </document_content>
+        </document>
+        <document index="26">
+            <source>components/common/SignOutButton.tsx</source>
+            <document_content> import { signOut } from "next-auth/react" import { Button } from
+                "@/components/ui/button" import { useRouter } from "next/navigation" const
+                SignOutButton = () => { const router = useRouter() const handleSignOut = async () =>
+                { await signOut({ redirect: false }) router.push('/') } return ( <Button
+                    size="sm"
+                    variant="destructive"
+                    className="flex items-center"
+                    onClick= {handleSignOut}
+                >
+                    Sign Out
+                </Button> ); }; export default SignOutButton; </document_content>
+        </document>
+        <document index="27">
+            <source>prisma/schema.prisma</source>
+            <document_content>
+                datasource db {
+                provider = "mongodb"
+                url = env("DATABASE_URL")
+                }
+
+                generator client {
+                provider = "prisma-client-js"
+                }
+
+                model User {
+                id String @id @default(auto()) @map("_id") @db.ObjectId
+                name String?
+                email String? @unique
+                emailVerified DateTime?
+                image String?
+                flashcards Flashcard[]
+                categories Category[]
+                learningStat LearningStat?
+                badges Badge[]
+                powerUps PowerUp[]
+                createdAt DateTime @default(now())
+                updatedAt DateTime @updatedAt
+                }
+
+                enum FlashcardType {
+                FLASHCARD
+                LANGUAGE
+                }
+
+                enum FlashcardStatus {
+                NEW
+                LEARNING
+                MASTERED
+                }
+
+                model Flashcard {
+                id String @id @default(auto()) @map("_id") @db.ObjectId
+                type FlashcardType
+                question String?
+                answer String?
+                word String?
+                translation String?
+                example String?
+                explanation String?
+                notes String?
+                lastReviewed DateTime?
+                status FlashcardStatus @default(NEW)
+                category Category? @relation(fields: [categoryId], references: [id])
+                categoryId String? @db.ObjectId
+                user User @relation(fields: [userId], references: [id])
+                userId String @db.ObjectId
+                createdAt DateTime @default(now())
+                updatedAt DateTime @updatedAt
+                }
+
+                model Category {
+                id String @id @default(auto()) @map("_id") @db.ObjectId
+                name String
+                user User @relation(fields: [userId], references: [id])
+                userId String @db.ObjectId
+                flashcards Flashcard[]
+                createdAt DateTime @default(now())
+                updatedAt DateTime @updatedAt
+
+                @@unique([name, userId])
+                }
+
+                model LearningStat {
+                id String @id @default(auto()) @map("_id") @db.ObjectId
+                user User @relation(fields: [userId], references: [id])
+                userId String @unique @db.ObjectId
+                totalCardsCreated Int @default(0)
+                totalCardsLearned Int @default(0)
+                xp Int @default(0)
+                streakDays Int @default(0)
+                level Int @default(1)
+                lastActive DateTime @default(now())
+                }
+
+                model Badge {
+                id String @id @default(auto()) @map("_id") @db.ObjectId
+                name String
+                description String?
+                user User @relation(fields: [userId], references: [id])
+                userId String @db.ObjectId
+                createdAt DateTime @default(now())
+                }
+
+                model PowerUp {
+                id String @id @default(auto()) @map("_id") @db.ObjectId
+                name String
+                description String?
+                expirationDate DateTime?
+                user User @relation(fields: [userId], references: [id])
+                userId String @db.ObjectId
+                createdAt DateTime @default(now())
+                }
+</document_content>
+        </document>
+        <document index="28">
+            <source>utils/config.ts</source>
+            <document_content> export const DEFAULT_MODEL = "claude-3-5-sonnet-20240620"; export
+                const DEFAULT_PROMPTS = { flashcard: `Based on the following text: [TEXT] Create 1-3
+                flashcards in JSON format with NO ADDITIONAL TEXT like this: [ { "question": "What
+                is a <b>compiler</b> in programming?", "answer": "A tool that <b>translates</b>
+                high-level code into <b>machine code</b> and checks for <b>syntax errors</b>" } ]
+                Now, generate the flashcards based on the text.`, explain: `Simplify and explain the
+                following text in markdown format: [TEXT] Focus on the main concepts, use clear
+                language, and break down complex ideas. Provide brief explanations for technical
+                terms.`, language: `Create a flashcard for the word "[TEXT]" in JSON format with no
+                additional text: { "word": "", "translation": "", "example": "", "explanation": "" }
+                Include: - "word": The word itself. - "translation": Translation in Vietnamese. -
+                "example": An English sentence using the word (word in <b> tags). - "explanation": A
+                brief English explanation. Now, generate the flashcard for the word.`, };             </document_content>
+        </document>
+        <document index="29">
+            <source>utils/contentUtils.ts</source>
+            <document_content> import { toast } from "@/components/ui/use-toast"; import {
+                AppDispatch } from "@/app/store"; import { addFlashcard } from
+                "@/app/slices/flashcardsSlice"; import { addLanguageCard } from
+                "@/app/slices/languageCardsSlice"; interface ParsedContent { word?: string;
+                translation?: string; example?: string; explanation?: string; question?: string;
+                answer?: string; } export const handleGenerateContent = async ( text: string, mode:
+                "language" | "flashcard" | "explain", customPrompts: { flashcard: string; explain:
+                string; language: string }, languageSubMode: "english" | "french", apiKey: string,
+                selectedModel: string, dispatch: AppDispatch, setExplanation: (explanation: string)
+                => void ): Promise<ParsedContent | null> => { if (!text) { toast({ title: "No text
+                selected", description: "Please select some text before generating content.", });
+                console.log("No text selected. Current text:", text); return null; }
+                console.log("Generating content with text:", text); if (!apiKey) { toast({ title:
+                "API Key Missing", description: "Please set your Anthropic API key in the
+                settings.", }); return null; } let prompt = ""; if (mode === "flashcard") { prompt =
+                customPrompts.flashcard.replace("[TEXT]", text); } else if (mode === "explain") {
+                prompt = customPrompts.explain.replace("[TEXT]", text); } else if (mode ===
+                "language") { prompt = customPrompts.language .replace("[TEXT]", text) } try { const
+                content = await generateContent(apiKey, selectedModel, prompt); await
+                parseAndAddCards(content, mode, dispatch, setExplanation); } catch (error) {
+                console.error("Error generating content:", error); toast({ title: "Error",
+                description: "An error occurred while generating content. Please try again.", });
+                return null; } }; export const parseAndAddCards = async ( content: string, mode:
+                "language" | "flashcard" | "explain", dispatch: AppDispatch, setExplanation:
+                (explanation: string) => void ) => { if (mode === "flashcard" || mode ===
+                "language") { try { const parsedContent = parseGeneratedContent(content);
+                console.log("Parsed Content:", parsedContent); if (mode === "flashcard") { // Handle
+                array of flashcards (parsedContent as any[]).forEach((card: { question: string;
+                answer: string }) => { dispatch(addFlashcard({ question: card.question, answer:
+                card.answer })); }); } else { dispatch(addLanguageCard(parsedContent)); } } catch
+                (error) { console.error("Error parsing content:", error); toast({ title: "Error",
+                description: "An error occurred while parsing the generated content. Please try
+                again.", }); } } else if (mode === "explain") { setExplanation(content); } }; async
+                function generateContent(apiKey: string, model: string, prompt: string): Promise<string>
+                { const response = await fetch("/api/generate", { method: "POST", headers: {
+                "Content-Type": "application/json" }, body: JSON.stringify({ apiKey, model, prompt
+                }), }); if (!response.ok) { throw new Error("Failed to generate content"); } const
+                data = await response.json(); console.log(model, prompt); console.log(data.content);
+                return data.content; } function parseGeneratedContent(content: string):
+                ParsedContent | ParsedContent[] { try { // Remove any leading/trailing whitespace
+                and parse JSON const parsed = JSON.parse(content.trim()); // For flashcards, handle
+                an array of flashcards if (Array.isArray(parsed)) { return parsed; } // For single
+                flashcard or language card return { word: parsed.word?.trim() || "", translation:
+                parsed.translation?.trim() || "", example: parsed.example?.trim() || "",
+                explanation: parsed.explanation?.trim() || "", question: parsed.question?.trim() ||
+                "", answer: parsed.answer?.trim() || "", }; } catch (error) { console.error("Invalid
+                JSON format:", content); throw new Error("Invalid content format"); } }             </document_content>
+        </document>
+        <document index="30">
+            <source>utils/createMarkup.ts</source>
+            <document_content>
+                export function createMarkup(content: string) {
+                return { __html: content };
+                }
+
+            </document_content>
+        </document>
+        <document index="31">
+            <source>utils/theme.ts</source>
+            <document_content>
+                export const theme = {
+                colors: {
+                background: "#ffffff",
+                foreground: "#171717",
+                primary: "#1d4ed8",
+                secondary: "#9333ea",
+                danger: "#dc2626",
+                // Add more theme colors as needed
+                },
+                // Add more theme settings like spacing, fonts, etc.
+                };
+
+            </document_content>
+        </document>
+        <document index="32">
+            <source>lib/utils.ts</source>
+            <document_content>
+                import { clsx, type ClassValue } from "clsx"
+                import { twMerge } from "tailwind-merge"
+
+                export function cn(...inputs: ClassValue[]) {
+                return twMerge(clsx(inputs))
+                }
+
+            </document_content>
+        </document>
+    </documents>
+
+</code-files>
+
+<output_format>
+<![CDATA[
+<files_content>
+  <file>
+    <path>path/to/file</path>
+    <action>create | update | delete</action>
+    <description>Description of changes and purpose.</description>
+    <code>Updated parts of the code</code>
+  </file>
+</files_content>
+]]>
+    </output_format>

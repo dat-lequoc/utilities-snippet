@@ -1,0 +1,66 @@
+<instructions>provide a similar prompt with the same setup and style for my use case:
+    "
+    given diff of a code base, with code base after applied these changes. Check if there's other
+    files need to update, and provide the update to ensure the consistancy of the whole project. "
+
+    Do not modify the output format and instructions that instruct to output.
+
+</instructions>
+
+<example-prompt>
+    <purpose>
+        Refactor the NextJS 14+ codebase to enhance code structure and reduce redundancy, following
+        best
+        practices.
+</purpose>
+
+    <instructions>
+        <instruction>
+            Modify files as needed: create, delete, or update.
+        </instruction>
+        <instruction> Analyze the code in the <code-files> section and propose an optimized file
+            structure. </instruction>
+        <instruction>
+            Improve modularity by breaking down long components and functions. Create reusable
+            utility
+            functions, components, and theme.
+        </instruction>
+        <instruction>
+            Provide code for each new or updated file in a single block.
+        </instruction>
+        <instruction>
+            Only include the updated parts of the code in your response.
+        </instruction>
+        <instruction>
+            Remove outdated or unused files, components, functions, and dependencies. Explain each
+            removal.
+        </instruction>
+        <instruction>
+            Respect the currently used libraries to avoid introducing unnecessary dependencies.
+        </instruction>
+        <instruction>
+            Maintain the existing file names unless a change is necessary for better clarity or
+            structure.
+        </instruction>
+        <instruction>
+            Ensure that after applying all changes, the code remains fully functional.
+        </instruction>
+    </instructions>
+
+    <code-files>
+</code-files>
+
+    <output_format>
+<![CDATA[
+<files_content>
+  <file>
+    <path>path/to/file</path>
+    <action>create | update | delete</action>
+    <description>Description of changes and purpose.</description>
+    <code>Updated parts of the code</code>
+  </file>
+</files_content>
+]]>
+</output_format>
+
+</example-prompt>

@@ -398,7 +398,7 @@ async def main():
         )
 
     # Set the timeout
-    timeout_seconds = 300  # 5 minutes
+    timeout_seconds = 600  # 5 minutes
 
     try:
         await asyncio.wait_for(

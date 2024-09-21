@@ -1,0 +1,50 @@
+<purpose>
+  Evaluate the provided code diffs for correctness. Confirm each diff if it correctly addresses
+  the issues, or provide a corrected final version if it does not.
+</purpose>
+
+<instructions>
+  <instruction> Review each code difference in the <code-diffs> section.
+  </instruction>
+  <instruction>
+    For each diff, determine whether it correctly fixes the identified errors, bugs, or
+    deviations from best practices.
+  </instruction>
+  <instruction>
+    If the diff is correct, confirm its validity.
+  </instruction>
+  <instruction>
+    If the diff is incorrect or insufficient, provide a corrected and improved version of the
+    diff.
+  </instruction>
+  <instruction>
+    Ensure that all confirmations and corrections adhere to best coding practices and enhance
+    overall code quality.
+  </instruction>
+  <instruction>
+    Only include confirmations or the corrected parts of the code in your response.
+  </instruction>
+</instructions>
+
+<code-diffs>
+</code-diffs>
+
+<output_format>
+  <![CDATA[
+  ```xml
+  <evaluations>
+    <evaluation>
+      <path>path/to/file</path>
+      <status>Confirmed</status>
+      <message>The diff correctly addresses the identified issue.</message>
+    </evaluation>
+    <evaluation>
+      <path>path/to/another_file</path>
+      <status>Corrected</status>
+      <description>Description of the issue and the correction made and why.</description>
+      <code>Corrected code snippet</code>
+    </evaluation>
+  </evaluations>
+  ```
+  ]]>
+</output_format>

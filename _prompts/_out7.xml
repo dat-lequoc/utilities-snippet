@@ -1,0 +1,961 @@
+```xml
+<files_content>
+  <file>
+    <path>utils/createMarkup.ts</path>
+    <action>create</action>
+    <description>
+      Created a utility function to safely set HTML content, reducing redundancy across components.
+    </description>
+    <code><![CDATA[
+export function createMarkup(content: string) {
+    return { __html: content };
+}
+    ]]></code>
+  </file>
+
+  <file>
+    <path>components/Cards/Card.tsx</path>
+    <action>create</action>
+    <description>
+      Created a generic Card component to handle both Flashcard and LanguageCard, enhancing reusability and reducing redundancy.
+    </description>
+    <code><![CDATA[
+import React from 'react';
+import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { X } from "lucide-react";
+import { createMarkup } from "@/utils/createMarkup";
+
+interface CardProps {
+    title: string;
+    subtitle?: string;
+    content: string;
+    onRemove: () => void;
+    isFlipped?: boolean;
+    onFlip?: () => void;
+}
+
+const GenericCard: React.FC<CardProps> = ({ title, subtitle, content, onRemove, isFlipped = false, onFlip }) => {
+    const handleClick = (e: React.MouseEvent) => {
+        if (onFlip && !(e.target as HTMLElement).closest('button')) {
+            onFlip();
+        }
+    };
+
+    return (
+        <Card
+            className={`bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-lg shadow-sm hover:shadow-md transition-shadow duration-200 cursor-pointer ${isFlipped ? 'bg-blue-50 dark:bg-blue-900' : ''}`}
+            onClick={handleClick}
+        >
+            <CardContent className="p-3 relative">
+                <Button
+                    variant="ghost"
+                    size="icon"
+                    className="absolute top-0.5 right-0.5 text-neutral-500 hover:text-red-500 dark:text-neutral-400 dark:hover:text-red-400 z-10"
+                    onClick={(e) => { e.stopPropagation(); onRemove(); }}
+                >
+                    <X className="h-3 w-3" />
+                </Button>
+                <div className="text-sm">
+                    {isFlipped ? (
+                        <p className="text-blue-800 dark:text-blue-200 break-words font-medium" dangerouslySetInnerHTML={createMarkup(content)} />
+                    ) : (
+                        <p className="text-neutral-900 dark:text-neutral-100 break-words" dangerouslySetInnerHTML={createMarkup(title)} />
+                    )}
+                    {subtitle && <p className="text-sm text-blue-600 dark:text-blue-400 break-words font-medium" dangerouslySetInnerHTML={createMarkup(subtitle)} />}
+                </div>
+            </CardContent>
+        </Card>
+    );
+};
+
+export default GenericCard;
+    ]]></code>
+  </file>
+
+  <file>
+    <path>components/Cards/Flashcard.tsx</path>
+    <action>update</action>
+    <description>
+      Updated Flashcard component to utilize the generic Card component and the createMarkup utility, improving modularity and reducing code redundancy.
+    </description>
+    <code><![CDATA[
+import React, { useState } from 'react';
+import GenericCard from './Card';
+
+interface FlashcardProps {
+    question: string;
+    answer: string;
+    onRemove: () => void;
+}
+
+export default function Flashcard({ question, answer, onRemove }: FlashcardProps) {
+    const [isFlipped, setIsFlipped] = useState(false);
+
+    return (
+        <GenericCard
+            title={question}
+            content={answer}
+            onRemove={onRemove}
+            isFlipped={isFlipped}
+            onFlip={() => setIsFlipped(!isFlipped)}
+        />
+    );
+}
+    ]]></code>
+  </file>
+
+  <file>
+    <path>components/Cards/LanguageCard.tsx</path>
+    <action>update</action>
+    <description>
+      Updated LanguageCard component to utilize the generic Card component and the createMarkup utility, enhancing reusability and consistency.
+    </description>
+    <code><![CDATA[
+import React from 'react';
+import GenericCard from './Card';
+
+interface LanguageCardProps {
+    word: string;
+    translation: string;
+    example: string;
+    explanation: string;
+    onRemove: () => void;
+}
+
+export default function LanguageCard({ word, translation, example, explanation, onRemove }: LanguageCardProps) {
+    const displayContent = `${example} <br/> <strong>Explanation:</strong> ${explanation}`;
+
+    return (
+        <GenericCard
+            title={word}
+            subtitle={`(${translation})`}
+            content={displayContent}
+            onRemove={onRemove}
+        />
+    );
+}
+    ]]></code>
+  </file>
+
+  <file>
+    <path>components/Cards/CardCollection.tsx</path>
+    <action>create</action>
+    <description>
+      Created a generic CardCollection component to handle collections of different card types, replacing FlashcardCollection and LanguageCardCollection.
+    </description>
+    <code><![CDATA[
+import React from 'react';
+import GenericCard from './Card';
+
+interface CardCollectionProps<T> {
+    cards: T[];
+    renderCard: (card: T, index: number) => React.ReactNode;
+    onAddCard: () => void;
+    onClearCollection: () => void;
+}
+
+export function CardCollection<T>({ cards, renderCard, onAddCard, onClearCollection }: CardCollectionProps<T>) {
+    return (
+        <div className="flex flex-col h-full">
+            <div className="flex-grow overflow-y-auto pr-2">
+                <div className="space-y-1">
+                    {cards.map((card, index) => renderCard(card, index))}
+                </div>
+            </div>
+            {cards.length > 0 && (
+                <div className="flex justify-between mt-3 pt-2 border-t border-gray-200 dark:border-gray-700">
+                    <button onClick={onAddCard} className="flex items-center bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 transition">
+                        Add Card
+                    </button>
+                    <button onClick={onClearCollection} className="flex items-center bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600 transition">
+                        Clear
+                    </button>
+                </div>
+            )}
+        </div>
+    );
+}
+    ]]></code>
+  </file>
+
+  <file>
+    <path>components/Cards/index.tsx</path>
+    <action>create</action>
+    <description>
+      Created an index file for the Cards directory to streamline imports.
+    </description>
+    <code><![CDATA[
+export { default as Flashcard } from './Flashcard';
+export { default as LanguageCard } from './LanguageCard';
+export { CardCollection } from './CardCollection';
+    ]]></code>
+  </file>
+
+  <file>
+    <path>components/MainInterface/FlashcardCollection.tsx</path>
+    <action>delete</action>
+    <description>
+      Removed FlashcardCollection as it has been replaced by the generic CardCollection component.
+    </description>
+  </file>
+
+  <file>
+    <path>components/MainInterface/LanguageCardCollection.tsx</path>
+    <action>delete</action>
+    <description>
+      Removed LanguageCardCollection as it has been replaced by the generic CardCollection component.
+    </description>
+  </file>
+
+  <file>
+    <path>components/Providers.tsx</path>
+    <action>delete</action>
+    <description>
+      Removed Providers.tsx as its functionality has been merged into the new Providers component.
+    </description>
+  </file>
+
+  <file>
+    <path>components/ClientRootLayout.tsx</path>
+    <action>delete</action>
+    <description>
+      Removed ClientRootLayout.tsx to eliminate redundancy by combining its functionality with Providers.tsx.
+    </description>
+  </file>
+
+  <file>
+    <path>components/Layout/Providers.tsx</path>
+    <action>create</action>
+    <description>
+      Combined Redux Provider and SessionProvider into a single Providers component for streamlined context provisioning.
+    </description>
+    <code><![CDATA[
+'use client';
+import { Provider } from 'react-redux';
+import { SessionProvider } from "next-auth/react";
+import { store } from '@/app/store';
+
+export function Providers({ children }: { children: React.ReactNode }) {
+    return (
+        <Provider store={store}>
+            <SessionProvider>
+                {children}
+            </SessionProvider>
+        </Provider>
+    );
+}
+    ]]></code>
+  </file>
+
+  <file>
+    <path>components/config.ts</path>
+    <action>move</action>
+    <description>
+      Moved config.ts from components to utils directory for better separation of concerns.
+    </description>
+  </file>
+
+  <file>
+    <path>utils/config.ts</path>
+    <action>create</action>
+    <description>
+      Moved DEFAULT_PROMPTS and DEFAULT_MODEL to utils/config.ts to centralize configuration settings.
+    </description>
+    <code><![CDATA[
+export const DEFAULT_MODEL = "claude-3-5-sonnet-20240620";
+
+export const DEFAULT_PROMPTS = {
+    flashcard: `Analyze the text and create 1-3 short-quizz based on this text : <text>
+        [TEXT]
+    </text> Flashcard Format: <Q> [Question] </Q>
+    <A> - [Answer] </A>
+    Example: <Q>What is a <b>compiler</b> in programming?</Q>
+    <A>- A tool that <b>translates</b> high-level code into <b>machine code</b> and checks for <b>syntax errors</b></A>
+    Now create flashcards based on the provided text, following the format and guidelines.`,
+    explain: `Explain the following text in simple terms: <text>
+        [TEXT]
+    </text> Focusing on the main concepts. Use clear and
+    concise language, and break down complex ideas into easily understandable parts. If
+    there are any technical terms, provide brief explanations for them. Now, provide
+    your answer in markdown format based on the provided text.`,
+    language: `Make a flashcard a given word in Vietnamese-English: <word>[TEXT]</word> Output format: <W> [Word]</W>
+    <T>[Translation in Vietnamese]</T>
+    <E>[Short example in English with word in <b> tags]</E>
+    <X>[Short explanation in English]</X> Example: 
+    "escalated"
+    <W>escalated</W>
+    <T>leo thang</T>
+    <E>Tensions <b>escalated</b> between the two countries after the border incident.</E>
+    <X>Increased rapidly in intensity or severity.</X>
+    Now process the task with provided word.`
+};
+    ]]></code>
+  </file>
+
+  <file>
+    <path>components/MainInterface/MainInterface.tsx</path>
+    <action>update</action>
+    <description>
+      Updated MainInterface.tsx to utilize the generic CardCollection component, enhancing modularity and reducing redundancy.
+    </description>
+    <code><![CDATA[
+import React, { useState, useEffect, useCallback, useRef } from "react";
+import { Settings } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { useToast } from "@/components/ui/use-toast";
+import { FileViewer } from "./FileViewer";
+import { Sidebar } from "./Sidebar";
+import { TopSidebar } from "./TopSidebar";
+import { SettingsDialog } from "./SettingsDialog";
+import { useRouter } from 'next/navigation';
+import { useSelector, useDispatch } from 'react-redux';
+import { RootState } from '@/app/store';
+import { setCurrentFile, addRecentFile } from '@/app/slices/fileSlice';
+import { setApiKey, setSelectedModel, setCustomPrompts, SettingsState } from '@/app/slices/settingsSlice';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import SignOutButton from "@/components/common/SignOutButton";
+import { handleGenerateContent } from "@/utils/contentUtils";
+import { CardCollection, Flashcard, LanguageCard } from "@/components/Cards";
+
+export function MainInterface() {
+    const [mode, setMode] = useState<"language" | "flashcard" | "explain">("language");
+    const [languageSubMode, setLanguageSubMode] = useState<"english" | "french">("english");
+    const [settingsOpen, setSettingsOpen] = useState(false);
+    const [explanation, setExplanation] = useState("");
+    const [selectedText, setSelectedText] = useState("");
+    const fileViewerRef = useRef<HTMLDivElement>(null);
+    const dispatch = useDispatch();
+    const { currentFile, recentFiles } = useSelector((state: RootState) => state.file);
+    const { apiKey, selectedModel, customPrompts } = useSelector((state: RootState) => state.settings);
+    const { toast } = useToast();
+    const router = useRouter();
+
+    useEffect(() => {
+        const storedApiKey = localStorage.getItem("apiKey");
+        if (storedApiKey) dispatch(setApiKey(storedApiKey));
+
+        const handleSelectionChange = () => {
+            const selection = window.getSelection();
+            if (selection) {
+                const newSelectedText = selection.toString().trim();
+                if (newSelectedText) setSelectedText(newSelectedText);
+            }
+        };
+
+        document.addEventListener('selectionchange', handleSelectionChange);
+        return () => {
+            document.removeEventListener('selectionchange', handleSelectionChange);
+        };
+    }, [dispatch]);
+
+    const handleContentGeneration = useCallback(async (text: string) => {
+        return handleGenerateContent(text, mode, customPrompts, languageSubMode, apiKey, selectedModel, dispatch, setExplanation);
+    }, [mode, customPrompts, languageSubMode, apiKey, selectedModel, dispatch, setExplanation]);
+
+    const handleWordDoubleClick = useCallback((word: string) => {
+        if (mode === "language") {
+            handleContentGeneration(word);
+        }
+    }, [mode, handleContentGeneration]);
+
+    const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+        const file = event.target.files?.[0];
+        if (file) {
+            dispatch(setCurrentFile(file));
+            dispatch(addRecentFile({ name: file.name, progress: 0 }));
+        }
+    };
+
+    const handleRecentFileClick = useCallback((fileName: string) => {
+        // Implement actual file loading logic here
+        const file = new File([""], fileName, { type: "application/octet-stream" });
+        dispatch(setCurrentFile(file));
+        toast({ title: "Recent file selected", description: `Loading ${fileName}...` });
+    }, [dispatch, toast]);
+
+    const handleSettingsClick = () => setSettingsOpen(true);
+    const handleDashboardClick = () => router.push('/dashboard');
+
+    return (
+        <div className="flex flex-col h-screen" tabIndex={0}>
+            <div className="flex flex-1 overflow-hidden">
+                <div className="flex-grow overflow-auto mr-4" ref={fileViewerRef}>
+                    <FileViewer
+                        currentFile={currentFile}
+                        onFileUpload={handleFileUpload}
+                        onTextSelect={setSelectedText}
+                        onWordDoubleClick={handleWordDoubleClick}
+                        recentFiles={recentFiles}
+                        onRecentFileClick={handleRecentFileClick}
+                    />
+                </div>
+                <Sidebar
+                    mode={mode}
+                    setMode={setMode}
+                    languageSubMode={languageSubMode}
+                    setLanguageSubMode={setLanguageSubMode}
+                    handleGenerateContent={() => handleContentGeneration(selectedText)}
+                    handleFileUpload={handleFileUpload}
+                    explanation={explanation}
+                    setExplanation={setExplanation}
+                />
+                <TopSidebar />
+            </div>
+
+            <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                    <Button
+                        className="absolute bottom-4 right-4 bg-white text-black border border-gray-300"
+                        size="icon">
+                        <Settings className="h-4 w-4" />
+                    </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-auto min-w-[8rem] bg-white border border-gray-300">
+                    <DropdownMenuItem className="w-full text-black hover:bg-gray-100">
+                        <SignOutButton />
+                    </DropdownMenuItem>
+                    <DropdownMenuItem className="w-full text-black hover:bg-gray-100" onClick={handleDashboardClick}>
+                        Dashboard
+                    </DropdownMenuItem>
+                    <DropdownMenuItem className="w-full text-black hover:bg-gray-100" onClick={handleSettingsClick}>
+                        Settings
+                    </DropdownMenuItem>
+                </DropdownMenuContent>
+            </DropdownMenu>
+
+            <SettingsDialog
+                open={settingsOpen}
+                onOpenChange={setSettingsOpen}
+                setApiKey={(value: string) => dispatch(setApiKey(value))}
+                selectedModel={selectedModel}
+                setSelectedModel={(value: string) => dispatch(setSelectedModel(value))}
+                customPrompts={customPrompts}
+                setCustomPrompts={(value: SettingsState['customPrompts']) => dispatch(setCustomPrompts(value))}
+            />
+
+            {explanation && (
+                <Dialog open={!!explanation} onOpenChange={() => setExplanation("")}>
+                    <DialogContent className="sm:max-w-[425px]">
+                        <DialogHeader>
+                            <DialogTitle>Explanation</DialogTitle>
+                        </DialogHeader>
+                        <div className="mt-4" dangerouslySetInnerHTML={{ __html: explanation }} />
+                    </DialogContent>
+                </Dialog>
+            )}
+        </div>
+    );
+}
+    ]]></code>
+  </file>
+
+  <file>
+    <path>components/Layout/index.tsx</path>
+    <action>create</action>
+    <description>
+      Created a layout index file to streamline imports and organize layout-related components.
+    </description>
+    <code><![CDATA[
+export { Providers } from './Providers';
+export { Sidebar } from './Sidebar';
+export { TopSidebar } from './TopSidebar';
+export { SettingsDialog } from './SettingsDialog';
+    ]]></code>
+  </file>
+
+  <file>
+    <path>utils/theme.ts</path>
+    <action>create</action>
+    <description>
+      Created a centralized theme configuration file for consistent styling across the application.
+    </description>
+    <code><![CDATA[
+export const theme = {
+    colors: {
+        background: "#ffffff",
+        foreground: "#171717",
+        primary: "#1d4ed8",
+        secondary: "#9333ea",
+        danger: "#dc2626",
+        // Add more theme colors as needed
+    },
+    // Add more theme settings like spacing, fonts, etc.
+};
+    ]]></code>
+  </file>
+
+  <file>
+    <path>components/Providers.tsx</path>
+    <action>delete</action>
+    <description>
+      Removed the old Providers.tsx file as its functionality has been merged into the new Layout/Providers.tsx.
+    </description>
+  </file>
+
+  <file>
+    <path>components/MainInterface/Sidebar.tsx</path>
+    <action>update</action>
+    <description>
+      Updated Sidebar.tsx to utilize the generic CardCollection component for managing flashcards and language cards, improving modularity and reducing code duplication.
+    </description>
+    <code><![CDATA[
+import React, { useRef } from "react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { CardCollection } from "@/components/Cards/CardCollection";
+import { Flashcard } from "@/components/Cards/Flashcard";
+import { LanguageCard } from "@/components/Cards/LanguageCard";
+import { useSelector, useDispatch } from 'react-redux';
+import { RootState } from '@/app/store';
+import { removeFlashcard, clearFlashcards } from '@/app/slices/flashcardsSlice';
+import { removeLanguageCard, clearLanguageCards } from '@/app/slices/languageCardsSlice';
+import { useToast } from '@/components/ui/use-toast';
+
+interface SidebarProps {
+    mode: "language" | "flashcard" | "explain";
+    setMode: React.Dispatch<React.SetStateAction<"language" | "flashcard" | "explain">>;
+    languageSubMode: "english" | "french";
+    setLanguageSubMode: React.Dispatch<React.SetStateAction<"english" | "french">>;
+    handleGenerateContent: () => Promise<any>;
+    handleFileUpload: (event: React.ChangeEvent<HTMLInputElement>) => void;
+    explanation: string;
+    setExplanation: React.Dispatch<React.SetStateAction<string>>;
+}
+
+export function Sidebar({ mode, setMode, languageSubMode, setLanguageSubMode, handleGenerateContent, handleFileUpload, explanation, setExplanation }: SidebarProps) {
+    const [sidebarWidth, setSidebarWidth] = React.useState(30);
+    const sidebarRef = useRef<HTMLDivElement>(null);
+    const resizeHandleRef = useRef<HTMLDivElement>(null);
+    const dispatch = useDispatch();
+    const flashcards = useSelector((state: RootState) => state.flashcards);
+    const languageCards = useSelector((state: RootState) => state.languageCards);
+    const { toast } = useToast();
+
+    const handleSaveCards = async () => {
+        // Implement save functionality
+    };
+
+    const handleMouseDown = (e: React.MouseEvent) => {
+        e.preventDefault();
+        document.addEventListener("mousemove", handleMouseMove);
+        document.addEventListener("mouseup", handleMouseUp);
+    };
+
+    const handleMouseMove = (e: MouseEvent) => {
+        if (sidebarRef.current && resizeHandleRef.current) {
+            const containerRect = sidebarRef.current.parentElement?.getBoundingClientRect();
+            if (containerRect) {
+                const newWidth = containerRect.right - e.clientX;
+                const newWidthPercentage = (newWidth / containerRect.width) * 100;
+                setSidebarWidth(Math.min(Math.max(newWidthPercentage, 20), 80));
+            }
+        }
+    };
+
+    const handleMouseUp = () => {
+        document.removeEventListener("mousemove", handleMouseMove);
+        document.removeEventListener("mouseup", handleMouseUp);
+    };
+
+    return (
+        <div
+            ref={sidebarRef}
+            className="flex flex-col bg-gray-50 overflow-hidden relative"
+            style={{ width: `${sidebarWidth}%`, minWidth: "200px", maxWidth: "80%" }}
+        >
+            <div className="flex-grow overflow-y-auto overflow-x-hidden p-4">
+                <div className="space-y-4">
+                    <div className="grid grid-cols-3 gap-2">
+                        <Button variant={mode === "language" ? "default" : "outline"} onClick={() => setMode("language")}>
+                            Language
+                        </Button>
+                        <Button variant={mode === "flashcard" ? "default" : "outline"} onClick={() => setMode("flashcard")}>
+                            Flashcard
+                        </Button>
+                        <Button variant={mode === "explain" ? "default" : "outline"} onClick={() => setMode("explain")}>
+                            Explain
+                        </Button>
+                    </div>
+                    {mode === "language" && (
+                        <CardCollection
+                            cards={languageCards}
+                            renderCard={(card, index) => (
+                                <LanguageCard
+                                    key={index}
+                                    word={card.word}
+                                    translation={card.translation}
+                                    example={card.example}
+                                    explanation={card.explanation}
+                                    onRemove={() => dispatch(removeLanguageCard(index))}
+                                />
+                            )}
+                            onAddCard={handleSaveCards}
+                            onClearCollection={() => dispatch(clearLanguageCards())}
+                        />
+                    )}
+                    {mode === "flashcard" && (
+                        <CardCollection
+                            cards={flashcards}
+                            renderCard={(card, index) => (
+                                <Flashcard
+                                    key={index}
+                                    question={card.question}
+                                    answer={card.answer}
+                                    onRemove={() => dispatch(removeFlashcard(index))}
+                                />
+                            )}
+                            onAddCard={handleSaveCards}
+                            onClearCollection={() => dispatch(clearFlashcards())}
+                        />
+                    )}
+                </div>
+                {mode === "explain" && explanation && (
+                    <div className="mt-4" dangerouslySetInnerHTML={{ __html: explanation }} />
+                )}
+            </div>
+
+            <div className="p-4 border-t">
+                <Button onClick={handleGenerateContent} className="w-full">
+                    {mode === "flashcard" ? "Generate Flashcard" : mode === "explain" ? "Generate Explanation" : `Translate to ${languageSubMode === "english" ? "English" : "French"}`}
+                </Button>
+            </div>
+
+            <div
+                ref={resizeHandleRef}
+                className="w-2 bg-gray-300 hover:bg-gray-400 cursor-ew-resize absolute top-0 left-0 bottom-0 transition-colors"
+                onMouseDown={handleMouseDown}
+            />
+
+            <Input
+                type="file"
+                onChange={handleFileUpload}
+                className="hidden"
+                id="file-upload"
+                accept=".pdf,.txt,.epub"
+            />
+        </div>
+    );
+}
+    ]]></code>
+  </file>
+
+  <file>
+    <path>components/MainInterface/ClientMainInterface.tsx</path>
+    <action>delete</action>
+    <description>
+      Removed ClientMainInterface.tsx as its functionality is now directly handled by MainInterface.tsx.
+    </description>
+  </file>
+
+  <file>
+    <path>components/Providers.tsx</path>
+    <action>delete</action>
+    <description>
+      Removed the old Providers.tsx as its functionality has been merged into the new Layout/Providers.tsx.
+    </description>
+  </file>
+
+  <file>
+    <path>app/slices/fileSlice.ts</path>
+    <action>update</action>
+    <description>
+      Updated fileSlice.ts to limit recentFiles to storing only the last 5 entries for better performance and user experience.
+    </description>
+    <code><![CDATA[
+import { createSlice, PayloadAction } from '@reduxjs/toolkit';
+
+interface FileState {
+    currentFile: File | null;
+    recentFiles: Array<{ name: string; progress: number }>;
+}
+
+const initialState: FileState = {
+    currentFile: null,
+    recentFiles: [],
+};
+
+const fileSlice = createSlice({
+    name: 'file',
+    initialState,
+    reducers: {
+        setCurrentFile: (state, action: PayloadAction<File | null>) => {
+            state.currentFile = action.payload;
+        },
+        addRecentFile: (state, action: PayloadAction<{ name: string; progress: number }>) => {
+            state.recentFiles = [
+                action.payload,
+                ...state.recentFiles.filter(f => f.name !== action.payload.name).slice(0, 4) // Keep only last 5
+            ];
+        },
+    },
+});
+
+export const { setCurrentFile, addRecentFile } = fileSlice.actions;
+export default fileSlice.reducer;
+    ]]></code>
+  </file>
+
+  <file>
+    <path>app/slices/settingsSlice.ts</path>
+    <action>update</action>
+    <description>
+      Updated settingsSlice.ts to import configuration from the new utils/config.ts location.
+    </description>
+    <code><![CDATA[
+import { createSlice, PayloadAction } from '@reduxjs/toolkit';
+import { DEFAULT_PROMPTS, DEFAULT_MODEL } from '@/utils/config';
+
+export interface SettingsState {
+    apiKey: string;
+    selectedModel: string;
+    customPrompts: {
+        flashcard: string;
+        explain: string;
+        language: string;
+    };
+}
+
+const initialState: SettingsState = {
+    apiKey: '',
+    selectedModel: DEFAULT_MODEL,
+    customPrompts: DEFAULT_PROMPTS,
+};
+
+const settingsSlice = createSlice({
+    name: 'settings',
+    initialState,
+    reducers: {
+        setApiKey: (state, action: PayloadAction<string>) => {
+            state.apiKey = action.payload;
+        },
+        setSelectedModel: (state, action: PayloadAction<string>) => {
+            state.selectedModel = action.payload;
+        },
+        setCustomPrompts: (state, action: PayloadAction<SettingsState['customPrompts']>) => {
+            state.customPrompts = action.payload;
+        },
+    },
+});
+
+export const { setApiKey, setSelectedModel, setCustomPrompts } = settingsSlice.actions;
+export default settingsSlice.reducer;
+    ]]></code>
+  </file>
+
+  <file>
+    <path>utils/contentUtils.ts</path>
+    <action>update</action>
+    <description>
+      Updated contentUtils.ts to import the createMarkup utility from the new utils/createMarkup.ts file.
+    </description>
+    <code><![CDATA[
+import { toast } from "@/components/ui/use-toast";
+import { AppDispatch } from "@/app/store";
+import { addFlashcard } from "@/app/slices/flashcardsSlice";
+import { addLanguageCard } from "@/app/slices/languageCardsSlice";
+import { createMarkup } from "./createMarkup";
+
+interface ParsedContent {
+    word: string;
+    translation: string;
+    example: string;
+    explanation: string;
+}
+
+export const handleGenerateContent = async (
+    text: string,
+    mode: "language" | "flashcard" | "explain",
+    customPrompts: { flashcard: string; explain: string; language: string },
+    languageSubMode: "english" | "french",
+    apiKey: string,
+    selectedModel: string,
+    dispatch: AppDispatch,
+    setExplanation: (explanation: string) => void
+): Promise<ParsedContent | null> => {
+    if (!text) {
+        toast({ title: "No text selected", description: "Please select some text before generating content." });
+        console.log("No text selected. Current text:", text);
+        return null;
+    }
+    console.log("Generating content with text:", text);
+    if (!apiKey) {
+        toast({ title: "API Key Missing", description: "Please set your Anthropic API key in the settings." });
+        return null;
+    }
+
+    let prompt = "";
+    if (mode === "flashcard") {
+        prompt = customPrompts.flashcard.replace("[TEXT]", text);
+    } else if (mode === "explain") {
+        prompt = customPrompts.explain.replace("[TEXT]", text);
+    } else if (mode === "language") {
+        prompt = `${customPrompts.language} Please provide the following for the word or phrase "[TEXT]": <W>The word or phrase itself</W>
+<T>[Translation in ${languageSubMode === "english" ? "French" : "English"}]</T>
+<E>An example sentence using the word or phrase</E>
+<X>A short explanation or definition</X>`
+            .replace("[TEXT]", text);
+    }
+
+    try {
+        const content = await generateContent(apiKey, selectedModel, prompt);
+        parseAndAddCards(content, mode, dispatch, setExplanation);
+    } catch (error) {
+        console.error("Error generating content:", error);
+        toast({ title: "Error", description: "An error occurred while generating content. Please try again." });
+        return null;
+    }
+};
+
+export const parseAndAddCards = (
+    content: string,
+    mode: "language" | "flashcard" | "explain",
+    dispatch: AppDispatch,
+    setExplanation: (explanation: string) => void
+) => {
+    if (mode === "flashcard" || mode === "language") {
+        try {
+            const parsedContent = parseGeneratedContent(content);
+            console.log("Response : ", parsedContent);
+            if (mode === "flashcard") {
+                dispatch(addFlashcard({ question: parsedContent.question, answer: parsedContent.answer }));
+            } else {
+                dispatch(addLanguageCard(parsedContent));
+            }
+        } catch (error) {
+            console.error("Error parsing content:", error);
+            toast({ title: "Error", description: "An error occurred while parsing the generated content. Please try again." });
+        }
+    } else if (mode === "explain") {
+        setExplanation(content);
+    }
+};
+
+async function generateContent(apiKey: string, model: string, prompt: string): Promise<string> {
+    const response = await fetch('/api/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ apiKey, model, prompt }),
+    });
+    if (!response.ok) {
+        throw new Error('Failed to generate content');
+    }
+    const data = await response.json();
+    console.log(model, prompt);
+    console.log(data.content);
+    return data.content;
+}
+
+function parseGeneratedContent(content: string): ParsedContent {
+    const wordMatch = content.match(/<W>(.*?)<\/W>/s);
+    const translationMatch = content.match(/<T>(.*?)<\/T>/s);
+    const exampleMatch = content.match(/<E>(.*?)<\/E>/s);
+    const explanationMatch = content.match(/<X>(.*?)<\/X>/s);
+
+    if (!wordMatch || !translationMatch || !exampleMatch || !explanationMatch) {
+        console.error('Invalid content format:', content);
+        throw new Error('Invalid content format');
+    }
+
+    return {
+        word: wordMatch[1].trim(),
+        translation: translationMatch[1].trim(),
+        example: exampleMatch[1].trim(),
+        explanation: explanationMatch[1].trim(),
+    };
+}
+    ]]></code>
+  </file>
+
+  <file>
+    <path>components/common/SignOutButton.tsx</path>
+    <action>update</action>
+    <description>
+      Updated SignOutButton.tsx to utilize the generic button styles and improve accessibility.
+    </description>
+    <code><![CDATA[
+import { signOut } from "next-auth/react";
+import { Button } from "@/components/ui/button";
+import { useRouter } from "next/navigation";
+
+const SignOutButton = () => {
+    const router = useRouter();
+    
+    const handleSignOut = async () => {
+        await signOut({ redirect: false });
+        router.push('/');
+    };
+
+    return (
+        <Button
+            size="sm"
+            variant="destructive"
+            className="flex items-center"
+            onClick={handleSignOut}
+        >
+            Sign Out
+        </Button>
+    );
+};
+
+export default SignOutButton;
+    ]]></code>
+  </file>
+
+  <file>
+    <path>app/layout.tsx</path>
+    <action>update</action>
+    <description>
+      Updated RootLayout to utilize the new Providers component and centralized theme configuration, ensuring consistent styling and state management across the application.
+    </description>
+    <code><![CDATA[
+import type { Metadata } from "next";
+import localFont from "next/font/local";
+import { Toaster } from "@/components/ui/toaster";
+import { Providers } from "@/components/Layout/Providers";
+import "./globals.css";
+import { theme } from "@/utils/theme";
+
+const geistSans = localFont({
+    src: "./fonts/GeistVF.woff",
+    variable: "--font-geist-sans",
+    weight: "100 900",
+});
+
+const geistMono = localFont({
+    src: "./fonts/GeistMonoVF.woff",
+    variable: "--font-geist-mono",
+    weight: "100 900",
+});
+
+export const metadata: Metadata = {
+    title: "Recall AI",
+    description: "Learn as you read",
+    icons: { icon: '/icon.svg' },
+};
+
+export default function RootLayout({ children }: { children: React.ReactNode }) {
+    return (
+        <html lang="en">
+            <body className={`${geistSans.variable} ${geistMono.variable} antialiased bg-background text-foreground`}>
+                <Providers>
+                    {children}
+                    <Toaster />
+                </Providers>
+            </body>
+        </html>
+    );
+}
+    ]]></code>
+  </file>
+
+  <file>
+    <path>components/MainInterface/ClientMainInterface.tsx</path>
+    <action>delete</action>
+    <description>
+      Removed ClientMainInterface.tsx as its functionality is now directly handled by MainInterface.tsx.
+    </description>
+  </file>
+</files_content>
+```

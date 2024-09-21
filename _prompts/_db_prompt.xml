@@ -1,0 +1,2726 @@
+<purpose>
+    Analyze the provided codebase and design a new database schema using Prisma (in
+    prisma/schema.prisma).
+    The new database schema should better align with the current flashcard functionality and the
+    newly added read-only pages which will be integrated later:
+    dashboard/page.tsx, practice/page.tsx, manager/page.tsx, and leaderboard/page.tsx.
+</purpose>
+
+<instructions>
+    <instruction> Examine the code in the <code-files> section to understand the existing data
+        models and their interactions. </instruction>
+    <instruction>
+        Design a new Prisma schema that enhances compatibility with the current codebase, ensuring
+        efficient data handling for flashcards and the newly added pages.
+    </instruction>
+    <instruction>
+        Incorporate necessary relationships, fields, and models to support the functionalities of
+        dashboard, practice, manager, and leaderboard pages.
+    </instruction>
+    <instruction>
+        Ensure the new schema follows Prisma best practices and conventions for optimal performance
+        and maintainability.
+    </instruction>
+    <instruction>
+        Provide the complete content for prisma/schema.prisma reflecting the new database schema.
+    </instruction>
+    <instruction>
+        Include explanations for significant changes or additions to the schema, detailing how they
+        improve integration with the existing codebase.
+    </instruction>
+    <instruction>
+        Maintain compatibility with existing data structures to prevent disruption of current
+        functionalities.
+    </instruction>
+    <instruction>
+        Avoid introducing unnecessary dependencies; utilize the libraries and tools currently in use
+        within the codebase.
+    </instruction>
+    <instruction>
+        Provide update changes to files that reflect the new schema.
+    </instruction>
+</instructions>
+
+<code-files>
+    <documents>
+        <document index="1">
+            <source>app/api/generate/route.ts</source>
+            <document_content>
+                import { NextRequest, NextResponse } from 'next/server';
+                import Anthropic from '@anthropic-ai/sdk';
+
+                export async function POST(req: NextRequest) {
+                console.log('API called');
+
+                const { apiKey, model, prompt } = await req.json();
+
+                if (!apiKey || !model || !prompt) {
+                return NextResponse.json({ message: 'Missing required parameters' }, { status: 400
+                });
+                }
+
+                const anthropic = new Anthropic({
+                apiKey: apiKey,
+                });
+
+                try {
+                const response = await anthropic.messages.create({
+                model: model,
+                max_tokens: 1024,
+                messages: [{ role: 'user', content: prompt }],
+                });
+
+                return NextResponse.json({ content: response.content[0].text });
+                } catch (error) {
+                console.error('Error calling Anthropic API:', error);
+                return NextResponse.json({ message: 'Error generating content' }, { status: 500 });
+                }
+                }
+</document_content>
+        </document>
+        <document index="2">
+            <source>app/api/cards/route.ts</source>
+            <document_content>
+                import { NextResponse } from 'next/server';
+                import { PrismaClient } from "@prisma/client"
+                import { getServerSession } from "next-auth/next";
+                import { authOptions } from "../auth/[...nextauth]/route";
+
+                export async function POST(req: Request) {
+                const session = await getServerSession(authOptions);
+                if (!session || !session.user) {
+                return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+                }
+
+                const { type, cards } = await req.json();
+                const prisma = new PrismaClient()
+
+                try {
+                const savedCards = await prisma.flashcard.createMany({
+                data: cards.map((card: any) => ({
+                type,
+                question: card.question,
+                answer: card.answer,
+                example: card.example,
+                explanation: card.explanation,
+                userId: session.user.id,
+                })),
+                });
+
+                return NextResponse.json({ count: savedCards.count });
+                } catch (error) {
+                console.error('Error saving cards:', error);
+                return NextResponse.json({ error: `Failed to save cards (${cards.length})` }, {
+                status: 500 });
+                }
+                }
+</document_content>
+        </document>
+        <document index="3">
+            <source>app/api/auth/[...nextauth]/route.ts</source>
+            <document_content>
+                import NextAuth from "next-auth"
+                import GoogleProvider from "next-auth/providers/google"
+                import GitHubProvider from "next-auth/providers/github"
+                import { PrismaAdapter } from "@next-auth/prisma-adapter"
+                import { PrismaClient } from "@prisma/client"
+                import { AuthOptions } from "next-auth"
+
+                const prisma = new PrismaClient()
+
+                export const authOptions: AuthOptions = {
+                adapter: PrismaAdapter(prisma),
+                providers: [
+                GoogleProvider({
+                clientId: process.env.GOOGLE_CLIENT_ID!,
+                clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
+                }),
+                GitHubProvider({
+                clientId: process.env.GITHUB_ID!,
+                clientSecret: process.env.GITHUB_SECRET!,
+                }),
+                ],
+                pages: {
+                signIn: '/signin',
+                },
+                callbacks: {
+                async session({ session, token }) {
+                if (session.user) {
+                session.user.id = token.sub;
+                }
+                return session;
+                },
+                async jwt({ token, user }) {
+                if (user) {
+                token.id = user.id;
+                }
+                return token;
+                },
+                async redirect({ url, baseUrl }) {
+                if (url === '/signin') {
+                return `${baseUrl}/main`
+                }
+                return url
+                },
+                },
+                events: {
+                async createUser({ user }) {
+                await prisma.learningStats.create({
+                data: {
+                userId: user.id,
+                },
+                });
+                },
+                },
+                secret: process.env.NEXTAUTH_SECRET,
+                session: {
+                strategy: "jwt",
+                },
+                jwt: {
+                secret: process.env.NEXTAUTH_SECRET,
+                },
+                debug: process.env.NODE_ENV === 'development',
+                }
+
+                const handler = NextAuth(authOptions)
+
+                export { handler as GET, handler as POST }
+</document_content>
+        </document>
+        <document index="4">
+            <source>app/dashboard/page.tsx</source>
+            <document_content> 'use client' import { useState, useEffect } from 'react' import {
+                Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card" import {
+                Button } from "@/components/ui/button" import { Progress } from
+                "@/components/ui/progress" import { Calendar } from "@/components/ui/calendar"
+                import { Bar, BarChart, ResponsiveContainer, XAxis, YAxis } from "recharts" import {
+                motion } from "framer-motion" import confetti from 'canvas-confetti' import { Flame,
+                Brain, Zap, Trophy, TrendingUp, Quote, Calendar as CalendarIcon } from
+                'lucide-react' import { Select, SelectContent, SelectItem, SelectTrigger,
+                SelectValue } from "@/components/ui/select" // Example data for illustration
+                (expanded for a full year) const activityData = Array.from({ length: 365 }, (_, i)
+                => { const date = new Date(2023, 0, i + 1) return { date:
+                date.toISOString().split('T')[0], count: Math.floor(Math.random() * 10) } }) const
+                weeklyProgress = [ { name: 'Mon', cards: 12 }, { name: 'Tue', cards: 18 }, { name:
+                'Wed', cards: 15 }, { name: 'Thu', cards: 25 }, { name: 'Fri', cards: 20 }, { name:
+                'Sat', cards: 30 }, { name: 'Sun', cards: 22 }, ] export default function
+                UserDashboard() { const [progress, setProgress] = useState(0) const [streakDays,
+                setStreakDays] = useState(0) const [heatmapView, setHeatmapView] = useState('month')
+                const userName = "Alice" // Replace with actual user name useEffect(() => { const
+                timer = setTimeout(() => setProgress(78), 500) return () => clearTimeout(timer) },
+                []) useEffect(() => { setStreakDays(5) if (streakDays === 5) { confetti({
+                particleCount: 100, spread: 70, origin: { y: 0.6 } }) } }, [streakDays]) const
+                getHeatmapData = () => { const today = new Date() const oneYearAgo = new
+                Date(today.getFullYear() - 1, today.getMonth(), today.getDate()) return
+                activityData.filter(d => new Date(d.date) >= oneYearAgo && new Date(d.date) <= today)
+    }
+
+    return (
+        <div
+                    className="container mx-auto p-4 space-y-6">
+                    <h1 className="text-3xl font-bold flex items-center gap-2">
+                        <Brain className="w-8 h-8 text-primary" /> Welcome back, {userName}! </h1>
+
+                    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                        <Card>
+                            <CardHeader
+                                className="flex flex-row items-center justify-between space-y-0 pb-2">
+                                <CardTitle className="text-sm font-medium">Weekly Goal</CardTitle>
+                                <Trophy className="h-4 w-4 text-muted-foreground" />
+                            </CardHeader>
+                            <CardContent>
+                                <div className="space-y-2">
+                                    <Progress value= {progress} className="w-full" />
+                                    <div className="flex items-center justify-between">
+                                        <p className="text-2xl font-bold">{progress}%</p>
+                                        <p className="text-xs text-muted-foreground">78 of 100 cards</p>
+                                    </div>
+                                </div>
+                            </CardContent>
+                        </Card>
+
+                        <Card>
+                            <CardHeader
+                                className="flex flex-row items-center justify-between space-y-0 pb-2">
+                                <CardTitle className="text-sm font-medium">Streak</CardTitle>
+                                <Flame className="h-4 w-4 text-orange-500" />
+                            </CardHeader>
+                            <CardContent>
+                                <div className="flex items-center justify-between">
+                                    <motion.div
+                                        className="text-3xl font-bold text-orange-500"
+                                        initial= {{ scale: 0 }}
+                                        animate= {{ scale: 1 }}
+                                        transition= {{ type: "spring" , stiffness: 260, damping: 20 }}
+                                    >
+                                        {streakDays} days
+                                    </motion.div>
+                                    <Button size="sm" onClick= {()=> setStreakDays(s => s +
+                1)}>+1 (Demo)</Button>
+                                </div>
+                            </CardContent>
+                        </Card>
+
+                        <Card>
+                            <CardHeader
+                                className="flex flex-row items-center justify-between space-y-0 pb-2">
+                                <CardTitle className="text-sm font-medium">Cards Created</CardTitle>
+                                <Brain className="h-4 w-4 text-purple-500" />
+                            </CardHeader>
+                            <CardContent>
+                                <motion.div
+                                    className="text-3xl font-bold text-purple-500"
+                                    initial= {{ opacity: 0, y: 20 }}
+                                    animate= {{ opacity: 1, y: 0 }}
+                                    transition= {{ duration: 0.5 }}
+                                >
+                                    142
+                                </motion.div>
+                                <p className="text-xs text-muted-foreground">total cards</p>
+                            </CardContent>
+                        </Card>
+
+                        <Card>
+                            <CardHeader
+                                className="flex flex-row items-center justify-between space-y-0 pb-2">
+                                <CardTitle className="text-sm font-medium">Learning Speed</CardTitle>
+                                <Zap className="h-4 w-4 text-yellow-500" />
+                            </CardHeader>
+                            <CardContent>
+                                <div className="text-3xl font-bold text-yellow-500">Fast</div>
+                                <p className="text-xs text-muted-foreground">10 cards/day avg</p>
+                            </CardContent>
+                        </Card>
+                    </div>
+
+                    <div className="grid gap-4 md:grid-cols-2">
+                        <Card className="col-span-1">
+                            <CardHeader
+                                className="flex flex-row items-center justify-between space-y-0">
+                                <CardTitle>Weekly Progress</CardTitle>
+                                <TrendingUp className="h-4 w-4 text-muted-foreground" />
+                            </CardHeader>
+                            <CardContent className="h-[200px]">
+                                <ResponsiveContainer width="100%" height="100%">
+                                    <BarChart data= {weeklyProgress}>
+                                        <XAxis dataKey="name" />
+                                        <YAxis />
+                                        <Bar
+                                            dataKey="cards"
+                                            fill="#3b82f6"
+                                            radius= {[4, 4, 0, 0]}
+                                            label= {{ position: 'top' , fill: '#6b7280' , fontSize: 12 }}
+                                        />
+                                    </BarChart>
+                                </ResponsiveContainer>
+                            </CardContent>
+                        </Card>
+
+                        <Card>
+                            <CardHeader
+                                className="flex flex-row items-center justify-between space-y-0">
+                                <CardTitle className="flex items-center gap-2">
+                                    <Quote className="h-4 w-4" /> Daily Inspiration </CardTitle>
+                            </CardHeader>
+                            <CardContent>
+                                <motion.p
+                                    className="text-lg font-semibold text-center"
+                                    initial= {{ opacity: 0 }}
+                                    animate= {{ opacity: 1 }}
+                                    transition= {{ delay: 0.5 }}
+                                >
+                                    "The capacity to learn is a gift; the ability to learn is a
+                skill; the willingness to learn is a choice." - Brian Herbert
+                                </motion.p>
+                            </CardContent>
+                        </Card>
+
+                        <Card className="col-span-1 md:col-span-2">
+                            <CardHeader>
+                                <div className="flex items-center justify-between">
+                                    <CardTitle className="flex items-center gap-2">
+                                        <CalendarIcon className="h-4 w-4" /> Activity Heatmap </CardTitle>
+                                    <Select value= {heatmapView} onValueChange= {setHeatmapView}>
+                                        <SelectTrigger className="w-[180px]">
+                                            <SelectValue placeholder="Select view" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="month">Month View</SelectItem>
+                                            <SelectItem value="year">Year View (Coming Soon)</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                            </CardHeader>
+                            <CardContent>
+                                <div className="h-[240px] overflow-y-auto">
+                                    <Calendar
+                                        mode="multiple"
+                                        selected= {getHeatmapData().map(d=> new Date(d.date))}
+                numberOfMonths={1}
+                                    className="rounded-md border"
+                                    modifiers={{
+                                    high: (date) => {
+                                    const activity = activityData.find(d => d.date ===
+                date.toISOString().split('T')[0])
+                                    return activity ? activity.count > 7 : false
+                                    },
+                                    medium: (date) => {
+                                    const activity = activityData.find(d => d.date ===
+                date.toISOString().split('T')[0])
+                                    return activity ? activity.count > 3 && activity.count
+                                    <= 7 : false
+                                    },
+                                    low: (date) => {
+                                    const activity = activityData.find(d => d.date ===
+                date.toISOString().split('T')[0])
+                                    return activity ? activity.count > 0 && activity.count
+                                    <= 3 : false
+                                    },
+                                }}
+                                modifiersStyles={{
+                                    high: { backgroundColor: 'rgba(34, 197, 94, 0.9)' },
+                                    medium: { backgroundColor: 'rgba(234, 179, 8, 0.9)' },
+                                    low: { backgroundColor: 'rgba(249, 115, 22, 0.9)' },
+                                }}
+                            />
+                                </div>
+                            </CardContent>
+                        </Card>
+                    </div>
+                </div>
+                ) }             </document_content>
+        </document>
+        <document index="5">
+            <source>app/globals.css</source>
+            <document_content>
+                @tailwind base;
+                @tailwind components;
+                @tailwind utilities;
+
+                :root {
+                --background: #ffffff;
+                --foreground: #171717;
+                }
+
+                @media (prefers-color-scheme: dark) {
+                :root {
+                --background: #0a0a0a;
+                --foreground: #ededed;
+                }
+                }
+
+                body {
+                color: var(--foreground);
+                background: var(--background);
+                font-family: Arial, Helvetica, sans-serif;
+                }
+
+                @layer utilities {
+                .text-balance {
+                text-wrap: balance;
+                }
+                }
+
+            </document_content>
+        </document>
+        <document index="6">
+            <source>app/layout.tsx</source>
+            <document_content> import type { Metadata } from "next"; import localFont from
+                "next/font/local"; import { Toaster } from "@/components/ui/toaster"; import {
+                Providers } from "@/components/Layout/Providers"; import "./globals.css"; import {
+                theme } from "@/utils/theme"; const geistSans = localFont({ src:
+                "../public/fonts/GeistVF.woff", variable: "--font-geist-sans", weight: "100 900",
+                }); const geistMono = localFont({ src: "../public/fonts/GeistMonoVF.woff", variable:
+                "--font-geist-mono", weight: "100 900", }); export const metadata: Metadata = {
+                title: "Recall AI", description: "Learn as you read", icons: { icon: '/icon.svg' },
+                }; export default function RootLayout({ children }: { children: React.ReactNode }) {
+                return ( <html lang="en">
+                    <body className= {`${geistSans.variable} ${geistMono.variable} antialiased bg-background text-foreground`}>
+                        <Providers> {children} <Toaster />
+                        </Providers>
+                    </body>
+                </html>
+                ); } </document_content>
+        </document>
+        <document index="7">
+            <source>app/leaderboard/page.tsx</source>
+            <document_content> 'use client' import { useState, useEffect } from 'react' import {
+                Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card" import {
+                Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar" import { Badge }
+                from "@/components/ui/badge" import { Button } from "@/components/ui/button" import
+                { Progress } from "@/components/ui/progress" import { Tabs, TabsContent, TabsList,
+                TabsTrigger } from "@/components/ui/tabs" import { Select, SelectContent,
+                SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select" import {
+                Input } from "@/components/ui/input" import { motion, AnimatePresence } from
+                "framer-motion" import confetti from 'canvas-confetti' import { Trophy, Medal, Star,
+                Zap, Target, Sparkles, BookOpen, Brain, Flame, Gift, TrendingUp, Users, Award,
+                Crown, Rocket, ArrowUp, ArrowDown, Swords, Lightbulb, Hexagon, ChevronUp,
+                ChevronDown, Search } from 'lucide-react' // Mock data for learners (expanded with
+                more fields) const learnersData = [ { id: 1, name: "Alice", avatar:
+                "/placeholder.svg?height=40&width=40", xp: 1200, streak: 15, cardsLearned: 450,
+                level: 8, badges: ["Polyglot", "Night Owl"], lastActive: "2 hours ago", rank: 1,
+                rankChange: 0, powerups: ["Double XP", "Streak Shield"] }, { id: 2, name: "Bob",
+                avatar: "/placeholder.svg?height=40&width=40", xp: 980, streak: 7, cardsLearned:
+                320, level: 6, badges: ["Early Bird"], lastActive: "1 day ago", rank: 2, rankChange:
+                1, powerups: ["Streak Freeze"] }, { id: 3, name: "Charlie", avatar:
+                "/placeholder.svg?height=40&width=40", xp: 1500, streak: 21, cardsLearned: 600,
+                level: 10, badges: ["Polyglot", "Streak Master"], lastActive: "5 minutes ago", rank:
+                3, rankChange: -1, powerups: ["XP Boost", "Infinite Lives"] }, { id: 4, name:
+                "Diana", avatar: "/placeholder.svg?height=40&width=40", xp: 800, streak: 5,
+                cardsLearned: 250, level: 5, badges: [], lastActive: "3 hours ago", rank: 4,
+                rankChange: 0, powerups: [] }, { id: 5, name: "Ethan", avatar:
+                "/placeholder.svg?height=40&width=40", xp: 1100, streak: 12, cardsLearned: 400,
+                level: 7, badges: ["Quiz Ace"], lastActive: "1 hour ago", rank: 5, rankChange: 2,
+                powerups: ["Time Warp"] }, ] const achievements = [ { name: "Consistent Learner",
+                icon: Flame, description: "Maintain a 7-day streak", progress: 85 }, { name:
+                "Knowledge Explorer", icon: BookOpen, description: "Learn 100 new cards", progress:
+                60 }, { name: "XP Milestone", icon: Zap, description: "Reach 1000 XP", progress: 100
+                }, { name: "Level Up", icon: Target, description: "Reach level 5", progress: 100 },
+                { name: "Dedication", icon: Medal, description: "Study for 30 days in total",
+                progress: 40 }, ] export default function Component() { const [learners,
+                setLearners] = useState(learnersData) const [sortBy, setSortBy] = useState('xp')
+                const [timeFrame, setTimeFrame] = useState('all') const [showConfetti,
+                setShowConfetti] = useState(false) const [selectedLearner, setSelectedLearner] =
+                useState(null) const [userRank, setUserRank] = useState(3) // Assuming the current
+                user is Charlie const [showDuelModal, setShowDuelModal] = useState(false) const
+                [duelOpponent, setDuelOpponent] = useState(null) const [expandedLearner,
+                setExpandedLearner] = useState(null) const [searchQuery, setSearchQuery] =
+                useState('') useEffect(() => { const sortedLearners = [...learners].sort((a, b) =>
+                b[sortBy] - a[sortBy]) setLearners(sortedLearners) }, [sortBy]) useEffect(() => { if
+                (showConfetti) { confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } })
+                setTimeout(() => setShowConfetti(false), 3000) } }, [showConfetti]) const
+                filteredLearners = learners.filter(learner =>
+                learner.name.toLowerCase().includes(searchQuery.toLowerCase()) ) const
+                renderLeaderboardHeader = () => ( <div
+                    className="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
+                    <h1 className="text-3xl font-bold">Learning Arena</h1>
+                    <div className="flex flex-col md:flex-row gap-4 w-full md:w-auto">
+                        <div className="relative w-full md:w-64">
+                            <Search
+                                className="absolute left-2 top-1/2 transform -translate-y-1/2 text-muted-foreground" />
+                            <Input
+                                type="text"
+                                placeholder="Search users..."
+                                value= {searchQuery}
+                                onChange= {(e)=> setSearchQuery(e.target.value)}
+                            className="pl-8"
+                            />
+                        </div>
+                        <Select value= {sortBy} onValueChange= {setSortBy}>
+                            <SelectTrigger className="w-full md:w-[180px]">
+                                <SelectValue placeholder="Sort by" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="xp">XP</SelectItem>
+                                <SelectItem value="streak">Streak</SelectItem>
+                                <SelectItem value="cardsLearned">Cards Learned</SelectItem>
+                                <SelectItem value="level">Level</SelectItem>
+                            </SelectContent>
+                        </Select>
+                        <Select value= {timeFrame} onValueChange= {setTimeFrame}>
+                            <SelectTrigger className="w-full md:w-[180px]">
+                                <SelectValue placeholder="Time frame" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="all">All Time</SelectItem>
+                                <SelectItem value="month">This Month</SelectItem>
+                                <SelectItem value="week">This Week</SelectItem>
+                            </SelectContent>
+                        </Select>
+                    </div>
+                </div>
+                ) const renderLeaderboard = () => ( <Card>
+                    <CardHeader>
+                        <CardTitle className="flex items-center gap-2">
+                            <Trophy className="h-6 w-6 text-yellow-500" /> Top Learners </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                        <AnimatePresence> {filteredLearners.map((learner, index) => ( <motion.div
+                                key= {learner.id}
+                                initial= {{ opacity: 0, y: 20 }}
+                                animate= {{ opacity: 1, y: 0 }}
+                                exit= {{ opacity: 0, y: -20 }}
+                                transition= {{ duration: 0.3, delay: index * 0.1 }}
+                                className= {`flex flex-col p-4 border-b last:border-b-0 hover:bg-muted/ 50 cursor-pointer ${learner.rank=== userRank ? 'bg-primary/10' : ''}`}
+              onClick={() => setExpandedLearner(expandedLearner === learner.id ? null : learner.id)}
+            >
+              <div
+                                    className="flex items-center justify-between">
+                                    <div className="flex items-center gap-4">
+                                        <span
+                                            className="text-2xl font-bold text-muted-foreground w-8">
+                {index === 0 && <Crown className="h-6 w-6 text-yellow-500" />} {index === 1 && <Crown
+                                                className="h-6 w-6 text-gray-400" />} {index === 2
+                && <Crown className="h-6 w-6 text-amber-600" />} {index > 2 && learner.rank} </span>
+                                        <Avatar>
+                                            <AvatarImage src= {learner.avatar} alt= {learner.name} />
+                                            <AvatarFallback>{learner.name[0]}</AvatarFallback>
+                                        </Avatar>
+                                        <div>
+                                            <p className="font-semibold">{learner.name}</p>
+                                            <p className="text-sm text-muted-foreground">Level
+                {learner.level}</p>
+                                        </div>
+                                    </div>
+                                    <div className="flex items-center gap-4">
+                                        <Badge variant="secondary"
+                                            className="flex items-center gap-1">
+                                            <Zap className="h-4 w-4" /> {learner.xp} XP </Badge>
+                  <Badge
+                                            variant="outline" className="flex items-center gap-1">
+                                            <Flame className="h-4 w-4" /> {learner.streak} day
+                streak </Badge>
+                  <Badge variant="outline" className="flex items-center gap-1">
+                                            <BookOpen className="h-4 w-4" /> {learner.cardsLearned}
+                cards </Badge> {learner.rankChange !== 0 && ( <Badge variant= {learner.rankChange> 0 ? "success" :
+                "destructive"} className="flex items-center gap-1"> {learner.rankChange > 0 ? <ArrowUp
+                                                className="h-4 w-4" /> : <ArrowDown
+                                                className="h-4 w-4" />}
+                {Math.abs(learner.rankChange)} </Badge> )} <Button
+                                            variant="outline"
+                                            size="sm"
+                                            onClick= {(e)=> { e.stopPropagation()
+                setDuelOpponent(learner) setShowDuelModal(true) }} > <Swords
+                                                className="h-4 w-4 mr-2" /> Duel </Button>
+                {expandedLearner === learner.id ? <ChevronUp className="h-4 w-4" /> : <ChevronDown
+                                            className="h-4 w-4" />} </div>
+                                </div>
+                {expandedLearner === learner.id && ( <motion.div
+                                    initial= {{ opacity: 0, height: 0 }}
+                                    animate= {{ opacity: 1, height: 'auto' }}
+                                    exit= {{ opacity: 0, height: 0 }}
+                                    transition= {{ duration: 0.3 }}
+                                    className="mt-4 space-y-4"
+                                >
+                                    <div className="grid grid-cols-3 gap-4">
+                                        <Card>
+                                            <CardContent
+                                                className="flex flex-col items-center justify-center p-4">
+                                                <Zap className="h-8 w-8 text-yellow-500 mb-2" />
+                                                <h3 className="text-xl font-bold">{learner.xp}</h3>
+                                                <p className="text-sm text-muted-foreground">Total
+                XP</p>
+                                            </CardContent>
+                                        </Card>
+                                        <Card>
+                                            <CardContent
+                                                className="flex flex-col items-center justify-center p-4">
+                                                <Flame className="h-8 w-8 text-orange-500 mb-2" />
+                                                <h3 className="text-xl font-bold">{learner.streak}</h3>
+                                                <p className="text-sm text-muted-foreground">Day
+                Streak</p>
+                                            </CardContent>
+                                        </Card>
+                                        <Card>
+                                            <CardContent
+                                                className="flex flex-col items-center justify-center p-4">
+                                                <BookOpen className="h-8 w-8 text-green-500 mb-2" />
+                                                <h3 className="text-xl font-bold">
+                {learner.cardsLearned}</h3>
+                                                <p className="text-sm text-muted-foreground">Cards
+                Learned</p>
+                                            </CardContent>
+                                        </Card>
+                                    </div>
+                                    <div>
+                                        <h3 className="text-lg font-semibold mb-2">Badges</h3>
+                                        <div className="flex flex-wrap gap-2">
+                {learner.badges.map((badge, index) => ( <Badge key= {index} variant="secondary"
+                                                className="flex items-center gap-1">
+                                                <Award className="h-4 w-4" /> {badge} </Badge> ))} </div>
+                                    </div>
+                                    <div>
+                                        <h3 className="text-lg font-semibold mb-2">Active Power-ups</h3>
+                                        <div className="flex flex-wrap gap-2">
+                {learner.powerups.map((powerup, index) => ( <Badge key= {index} variant="outline"
+                                                className="flex items-center gap-1">
+                                                <Hexagon className="h-4 w-4" /> {powerup} </Badge>
+                ))} </div>
+                                    </div>
+                                </motion.div>
+                )} </motion.div> ))} </AnimatePresence>
+                    </CardContent>
+                </Card>
+                ) const renderAchievements = () => ( <Card className="mt-8">
+                    <CardHeader>
+                        <CardTitle className="flex items-center gap-2">
+                            <Star className="h-6 w-6 text-yellow-500" /> Recent Achievements </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {achievements.map((achievement, index) => ( <Card key= {index} className="bg-muted">
+                                <CardContent className="flex flex-col gap-4 p-4">
+                                    <div className="flex items-center gap-4">
+                                        <achievement.icon className="h-8 w-8 text-primary" />
+                                        <div>
+                                            <h3 className="font-semibold">{achievement.name}</h3>
+                                            <p className="text-sm text-muted-foreground">
+                {achievement.description}</p>
+                                        </div>
+                                    </div>
+                                    <Progress value= {achievement.progress} className="w-full h-2" />
+                                    <p className="text-sm text-right">{achievement.progress}%
+                complete</p>
+                                </CardContent>
+                            </Card>
+                ))} </div>
+                    </CardContent>
+                </Card> ) const
+                renderCommunityStats = () => ( <Card className="mt-8">
+                    <CardHeader>
+                        <CardTitle className="flex items-center gap-2">
+                            <Brain className="h-6 w-6 text-blue-500" /> Community Stats </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <Card>
+                                <CardContent
+                                    className="flex flex-col items-center justify-center p-6">
+                                    <Zap className="h-12 w-12 text-yellow-500 mb-2" />
+                                    <h3 className="text-2xl font-bold">54,321</h3>
+                                    <p className="text-muted-foreground">Total XP Earned</p>
+                                </CardContent>
+                            </Card>
+                            <Card>
+                                <CardContent
+                                    className="flex flex-col items-center justify-center p-6">
+                                    <BookOpen className="h-12 w-12 text-green-500 mb-2" />
+                                    <h3 className="text-2xl font-bold">12,345</h3>
+                                    <p className="text-muted-foreground">Cards Learned Today</p>
+                                </CardContent>
+                            </Card>
+                            <Card>
+                                <CardContent
+                                    className="flex flex-col items-center justify-center p-6">
+                                    <Flame className="h-12 w-12 text-orange-500 mb-2" />
+                                    <h3 className="text-2xl font-bold">789</h3>
+                                    <p className="text-muted-foreground">Active Streaks</p>
+                                </CardContent>
+                            </Card>
+                        </div>
+                    </CardContent>
+                </Card>
+                ) const renderCommunityChallenge = () => ( <Card className="mt-8">
+                    <CardHeader>
+                        <CardTitle className="flex items-center gap-2">
+                            <Target className="h-6 w-6 text-red-500" /> Community Challenge </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                        <h3 className="text-xl font-semibold mb-2">Learn 100,000 Cards This Week</h3>
+                        <p className="text-muted-foreground mb-4">Join forces with other learners to
+                reach our community goal!</p>
+                        <div className="space-y-2">
+                            <div className="flex justify-between text-sm">
+                                <span>Progress: 73,450 / 100,000</span>
+                                <span>73%</span>
+                            </div>
+                            <Progress value= {73} className="w-full h-2" />
+                        </div>
+                        <Button className="mt-4" onClick= {()=> setShowConfetti(true)}>
+                Contribute Now
+                        </Button>
+                    </CardContent>
+                </Card>
+                ) const renderDailyChallenge = () => ( <Card className="mt-8">
+                    <CardHeader>
+                        <CardTitle className="flex items-center gap-2">
+                            <Gift className="h-6 w-6 text-purple-500" /> Daily Challenge </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                        <h3 className="text-xl font-semibold mb-2">Learn 50 New Words</h3>
+                        <p className="text-muted-foreground mb-4">Complete today's challenge to earn
+                bonus XP and a special badge!</p>
+                        <div className="space-y-2">
+                            <div className="flex justify-between text-sm">
+                                <span>Progress: 32 / 50</span>
+                                <span>64%</span>
+                            </div>
+                            <Progress value= {64} className="w-full h-2" />
+                        </div>
+                        <Button className="mt-4" variant="outline">
+                            Start Learning
+                        </Button>
+                    </CardContent>
+                </Card>
+                ) const renderTrendingTopics = () => ( <Card className="mt-8">
+                    <CardHeader>
+                        <CardTitle className="flex items-center gap-2">
+                            <TrendingUp className="h-6 w-6 text-green-500" /> Trending Topics </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {['Spanish Verbs', 'JavaScript Basics', 'World Capitals', 'Chemistry Elements', 'Art
+                History'].map((topic, index) => ( <Button key= {index} variant="outline"
+                                className="justify-start">
+                                <Sparkles className="h-4 w-4 mr-2" /> {topic} </Button> ))} </div>
+                    </CardContent>
+                </Card>
+                ) const renderUserProgress = () => ( <Card className="mt-8">
+                    <CardHeader>
+                        <CardTitle className="flex items-center gap-2">
+                            <Rocket className="h-6 w-6 text-blue-500" /> Your Progress </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                        <div className="flex items-center justify-between mb-4">
+                            <div>
+                                <h3 className="text-xl font-semibold">Current Rank: {userRank}</h3>
+                                <p className="text-muted-foreground">Keep going! You're doing great!</p>
+                            </div>
+                            <Button variant="outline">View Detailed Stats</Button>
+                        </div>
+                        <div className="space-y-4">
+                            <div>
+                                <div className="flex justify-between text-sm mb-1">
+                                    <span>XP to next level</span>
+                                    <span>750 / 1000</span>
+                                </div>
+                                <Progress value= {75} className="w-full h-2" />
+                            </div>
+                            <div>
+                                <div className="flex justify-between text-sm mb-1">
+                                    <span>Daily goal progress</span>
+                                    <span>4 / 5 sessions</span>
+                                </div>
+                                <Progress value= {80} className="w-full h-2" />
+                            </div>
+                        </div>
+                    </CardContent>
+                </Card>
+                ) const renderDuelModal = () => ( showDuelModal && duelOpponent && ( <div
+                    className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                    <Card className="w-96">
+                        <CardHeader>
+                            <CardTitle className="flex items-center gap-2">
+                                <Swords className="h-6 w-6 text-red-500" /> Learning Duel </CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                            <p className="mb-4">Challenge {duelOpponent.name} to a learning duel!</p>
+                            <div className="flex justify-between items-center mb-4">
+                                <Avatar>
+                                    <AvatarImage src="/placeholder.svg?height=40&width=40"
+                                        alt="Your Avatar" />
+                                    <AvatarFallback>You</AvatarFallback>
+                                </Avatar>
+                                <Swords className="h-8 w-8 text-red-500" />
+                                <Avatar>
+                                    <AvatarImage src= {duelOpponent.avatar} alt= {duelOpponent.name} />
+                                    <AvatarFallback>{duelOpponent.name[0]}</AvatarFallback>
+                                </Avatar>
+                            </div>
+                            <div className="space-y-2">
+                                <Button className="w-full" onClick= {()=>
+                setShowDuelModal(false)}>
+                                    Start Duel
+                                </Button>
+                                <Button className="w-full" variant="outline" onClick= {()=>
+                setShowDuelModal(false)}>
+                                    Cancel
+                                </Button>
+                            </div>
+                        </CardContent>
+                    </Card>
+                </div>
+                ) ) return ( <div className="container mx-auto p-4 space-y-6">
+                {renderLeaderboardHeader()} <Tabs defaultValue="leaderboard">
+                        <TabsList className="mb-4">
+                            <TabsTrigger value="leaderboard">Leaderboard</TabsTrigger>
+                            <TabsTrigger value="achievements">Achievements</TabsTrigger>
+                            <TabsTrigger value="community">Community</TabsTrigger>
+                            <TabsTrigger value="challenges">Challenges</TabsTrigger>
+                            <TabsTrigger value="progress">Your Progress</TabsTrigger>
+                        </TabsList>
+                        <TabsContent value="leaderboard">
+                            {renderLeaderboard()}
+                        </TabsContent>
+                        <TabsContent value="achievements">
+                            {renderAchievements()}
+                        </TabsContent>
+                        <TabsContent value="community">
+                            {renderCommunityStats()}
+                            {renderCommunityChallenge()}
+                            {renderTrendingTopics()}
+                        </TabsContent>
+                        <TabsContent value="challenges">
+                            {renderDailyChallenge()}
+                            {renderCommunityChallenge()}
+                        </TabsContent>
+                        <TabsContent value="progress">
+                            {renderUserProgress()}
+                        </TabsContent>
+                    </Tabs>
+                {renderDuelModal()} </div> ) } </document_content>
+        </document>
+        <document index="8">
+            <source>app/main/page.tsx</source>
+            <document_content> import { getServerSession } from "next-auth/next" import { redirect }
+                from 'next/navigation' import { authOptions } from '../api/auth/[...nextauth]/route'
+                // import ClientMainInterface from '@/components/MainInterface/ClientMainInterface'
+                import { MainInterface } from '@/components/MainInterface/MainInterface' export
+                default async function Main() { try { const session = await
+                getServerSession(authOptions) if (!session) { console.log("No session found,
+                redirecting to signin") redirect('/signin') } console.log("Session found:",
+                JSON.stringify(session, null, 2)) return <MainInterface /> } catch (error) {
+                console.error("Error in Main component:", error)
+                redirect('/signin?error=SessionError') } } </document_content>
+        </document>
+        <document index="9">
+            <source>app/manager/constants.ts</source>
+            <document_content>
+                export const initialFlashcards = [
+                { id: 1, word: 'Bonjour', translation: 'Hello', category: 'Greetings', status:
+                'Learning', notes: 'Used as a greeting during the day', lastReviewed: '2023-06-01'
+                },
+                { id: 6, word: 'Trois', translation: 'Three', category: 'Numbers', status:
+                'Mastered', notes: 'Third cardinal number', lastReviewed: '2023-06-04' },
+                ]
+
+                export const STATUSES = ['All', 'New', 'Learning', 'Mastered']
+                export const FONT_SIZES = ['small', 'medium', 'large']
+</document_content>
+        </document>
+        <document index="10">
+            <source>app/manager/page.tsx</source>
+            <document_content> 'use client' import { useState, useEffect, useRef } from 'react'
+                import { Button } from "@/components/ui/button" import { Input } from
+                "@/components/ui/input" import { Select, SelectTrigger, SelectValue, SelectContent,
+                SelectItem } from "@/components/ui/select" import { Card, CardContent } from
+                "@/components/ui/card" import { Progress } from "@/components/ui/progress" import {
+                Switch } from "@/components/ui/switch" import { Tabs, TabsList, TabsTrigger } from
+                "@/components/ui/tabs" import { Badge } from "@/components/ui/badge" import {
+                Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from
+                "@/components/ui/dialog" import { Label } from "@/components/ui/label" import {
+                Textarea } from "@/components/ui/textarea" import { Checkbox } from
+                "@/components/ui/checkbox" import { Search, Plus, Edit2, Trash2, Star, Volume2,
+                Settings, Download, Upload, Filter } from 'lucide-react' import { useToast } from
+                "@/components/ui/use-toast" import { initialFlashcards, STATUSES, FONT_SIZES } from
+                './constants' import { addCategory, toggleCategory, changeCardCategory, deleteCard,
+                updateCardStatus, saveCard, exportToCSV, importFromCSV, pronounceWord,
+                toggleCardSelection, handleBulkAction, selectAllCards } from './utils' export
+                default function FlashcardManager() { const [flashcards, setFlashcards] =
+                useState(initialFlashcards) const [searchTerm, setSearchTerm] = useState('') const
+                [selectedCategories, setSelectedCategories] = useState(['All']) const
+                [selectedStatus, setSelectedStatus] = useState('All') const [viewMode, setViewMode]
+                = useState('grid') const [newCategory, setNewCategory] = useState('') const
+                [darkMode, setDarkMode] = useState(false) const [editingCard, setEditingCard] =
+                useState(null) const [isAddingCard, setIsAddingCard] = useState(false) const
+                [isSettingsOpen, setIsSettingsOpen] = useState(false) const [fontSize, setFontSize]
+                = useState('medium') const [reviewInterval, setReviewInterval] = useState(7) const
+                [selectedCards, setSelectedCards] = useState([]) const [isFilterOpen,
+                setIsFilterOpen] = useState(false) const { toast } = useToast() const fileInputRef =
+                useRef(null) const categories = ['All', ...new Set(flashcards.map(card =>
+                card.category))] const filteredFlashcards = flashcards.filter(card =>
+                card.word.toLowerCase().includes(searchTerm.toLowerCase()) &&
+                (selectedCategories.includes('All') || selectedCategories.includes(card.category))
+                && (selectedStatus === 'All' || card.status === selectedStatus) ) const stats = {
+                total: flashcards.length, new: flashcards.filter(card => card.status ===
+                'New').length, learning: flashcards.filter(card => card.status ===
+                'Learning').length, mastered: flashcards.filter(card => card.status ===
+                'Mastered').length, } useEffect(() => { document.body.classList.toggle('dark',
+                darkMode) }, [darkMode]) return ( <div className= {`flex h-screen ${darkMode ? 'dark bg-gray-900 text-white' : 'bg-gray-100'}`}>
+            {/* Main Content */}
+            <div
+                        className="flex-1 p-8 overflow-auto">
+                        <h1 className="text-3xl font-bold mb-6">Flashcard Manager</h1> {/*
+                Navigation and Filtering */} <div className="flex items-center space-x-4 mb-6">
+                            <div className="relative flex-1">
+                                <Input
+                                    type="text"
+                                    placeholder="Search flashcards..."
+                                    value= {searchTerm}
+                                    onChange= {(e)=> setSearchTerm(e.target.value)}
+                className={`pl-10 ${darkMode ? 'bg-gray-800 text-white border-gray-700' : ''}`}
+                                />
+                                <Search
+                                    className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"
+                                    size= {20} />
+                            </div>
+                            <Select value= {selectedStatus} onValueChange= {setSelectedStatus}>
+                                <SelectTrigger className= {`w-[180px] ${darkMode ? 'bg-gray-800 text-white border-gray-700' : ''}`}>
+                                    <SelectValue placeholder="Select status" />
+                                </SelectTrigger>
+                                <SelectContent className= {darkMode ? 'bg-gray-800 text-white border-gray-700' : ''}>
+                            {STATUSES.map(status => (
+                                <SelectItem key= {status} value= {status}>{status}</SelectItem>
+                ))} </SelectContent>
+                            </Select>
+                            <Button variant="outline" size="icon" onClick= {()=>
+                exportToCSV(flashcards)} className={darkMode ? 'bg-gray-800 text-white
+                border-gray-700' : ''}> <Download size= {20} />
+                            </Button>
+                            <Button variant="outline" size="icon" onClick= {()=>
+                fileInputRef.current.click()} className={darkMode ? 'bg-gray-800 text-white
+                border-gray-700' : ''}> <Upload size= {20} />
+                            </Button>
+                            <input
+                                type="file"
+                                ref= {fileInputRef}
+                                onChange= {(e)=> importFromCSV(e, setFlashcards)}
+                            style={{ display: 'none' }}
+                            accept=".csv"
+                            />
+                            <Button variant="outline" size="icon" onClick= {()=>
+                setIsSettingsOpen(true)} className={darkMode ? 'bg-gray-800 text-white
+                border-gray-700' : ''}> <Settings size= {20} />
+                            </Button>
+                            <Button variant="outline" size="icon" onClick= {()=>
+                setIsFilterOpen(true)} className={darkMode ? 'bg-gray-800 text-white
+                border-gray-700' : ''}> <Filter size= {20} />
+                            </Button>
+                        </div> {/* Bulk Actions
+                */} <div className="mb-4 flex items-center space-x-2">
+                            <Checkbox
+                                checked= {selectedCards.length=== filteredFlashcards.length}
+                        onCheckedChange={() => selectAllCards(filteredFlashcards, selectedCards, setSelectedCards)}
+                        className={darkMode ? 'border-gray-600' : ''}
+                    />
+                            <span>Select All</span>
+                            {selectedCards.length > 0 && (
+                            <>
+                                <span>{selectedCards.length} cards selected</span>
+                                <Button onClick= {()=> handleBulkAction('delete', selectedCards,
+                flashcards, setFlashcards, setSelectedCards)} variant="destructive">Delete Selected</Button>
+                                <Button onClick= {()=> handleBulkAction('export', selectedCards,
+                flashcards, setFlashcards, setSelectedCards)}>Export Selected</Button>
+                            </>
+                )}
+                        </div>
+                {/* Flashcard Display */} <Tabs value= {viewMode} onValueChange= {setViewMode} className="mb-6">
+                            <TabsList className= {darkMode ? 'bg-gray-800' : ''}>
+                                <TabsTrigger value="grid" className= {darkMode ? 'data-[state=active]:bg-gray-700' : ''}>Grid View</TabsTrigger>
+                                <TabsTrigger value="list" className= {darkMode ? 'data-[state=active]:bg-gray-700' : ''}>List View</TabsTrigger>
+                            </TabsList>
+                        </Tabs>
+
+                <div
+                            className= {`grid gap-4 ${viewMode=== 'grid' ? 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4' : 'grid-cols-1'}`}>
+                    {filteredFlashcards.map((card) => (
+                        <Card key= {card.id} className= {`flex flex-col ${darkMode ? 'bg-gray-800 border-gray-700' : ''} ${selectedCards.includes(card.id) ? 'ring-2 ring-primary' : ''}`}>
+                                <CardContent className="flex-1 p-4">
+                                    <div className="flex justify-between items-start mb-2">
+                                        <div className="flex items-center">
+                                            <Checkbox
+                                                checked= {selectedCards.includes(card.id)}
+                                                onCheckedChange= {()=>
+                toggleCardSelection(card.id, selectedCards, setSelectedCards)}
+                                            className={`mr-2 ${darkMode ? 'border-gray-600' : ''}`}
+                />
+                                            <h3 className= {`text-lg font-semibold ${darkMode ? 'text-white' : 'text-gray-900'}`}>{card.word}</h3>
+                                        </div>
+                                        <div className="flex space-x-1">
+                                            <Button variant="ghost" size="icon">
+                                                <Star size= {16} className= {darkMode ? 'text-yellow-400' : 'text-yellow-500'} />
+                                            </Button>
+                                            <Button variant="ghost" size="icon" onClick= {()=>
+                pronounceWord(card.word)}> <Volume2 size= {16} className= {darkMode ? 'text-blue-400' : 'text-blue-500'} />
+                                            </Button>
+                                        </div>
+                                    </div>
+                                    <p className= {`${darkMode ? 'text-gray-300' : 'text-gray-600'} mb-2`}>{card.translation}</p>
+                                    <p className= {`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'} mb-2`}>Category: {card.category}</p>
+                                    <p className= {`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'} mb-2`}>Last Reviewed: {card.lastReviewed || 'Never'}</p>
+                                    <div className="flex justify-between items-center">
+                                        <Select value= {card.status} onValueChange= {(value)=>
+                updateCardStatus(card.id, value, setFlashcards)}> <SelectTrigger className= {`w-[120px] ${darkMode ? 'bg-gray-700 text-white border-gray-600' : ''}`}>
+                                                <SelectValue placeholder="Status" />
+                                            </SelectTrigger>
+                                        <SelectContent
+                                                className= {darkMode ? 'bg-gray-700 text-white border-gray-600' : ''}>
+                                            {STATUSES.filter(status => status !== 'All').map(status => (
+                                                <SelectItem key= {status} value= {status}>{status}</SelectItem>
+                ))} </SelectContent>
+                                        </Select>
+                                        <div className="flex space-x-1">
+                                            <Button variant="ghost" size="icon" onClick= {()=>
+                setEditingCard(card)}> <Edit2 size= {16} className= {darkMode ? 'text-gray-300' : 'text-gray-600'} />
+                                            </Button>
+                                            <Button variant="ghost" size="icon" onClick= {()=>
+                deleteCard(card.id, setFlashcards)}> <Trash2 size= {16} className= {darkMode ? 'text-red-400' : 'text-red-500'} />
+                                            </Button>
+                                        </div>
+                                    </div>
+                                </CardContent>
+                            </Card>
+                ))} </div> {/* Add New Flashcard Button */} <Button className= {`fixed bottom-8 right-8 rounded-full shadow-lg ${darkMode ? 'bg-blue-600 hover:bg-blue-700' : ''}`} onClick={() => setIsAddingCard(true)}>
+                    <Plus size= {24}
+                                className="mr-2" /> Add New Flashcard </Button>
+                    </div>
+                {/* Right Sidebar */} <div className= {`w-80 ${darkMode ? 'bg-gray-800 border-l border-gray-700' : 'bg-white'} p-4 shadow-md overflow-y-auto`}>
+                        <h2 className="text-xl font-bold mb-4">Deck Statistics</h2>
+                        <div className="grid grid-cols-2 gap-4 mb-6">
+                            <div className= {`${darkMode ? 'bg-gray-700' : 'bg-gray-100'} p-3 rounded`}>
+                                <p className= {`text-sm ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>Total Cards</p>
+                                <p className="text-2xl font-bold">{stats.total}</p>
+                            </div>
+                            <div className= {`${darkMode ? 'bg-blue-900' : 'bg-blue-100'} p-3 rounded`}>
+                                <p className= {`text-sm ${darkMode ? 'text-blue-300' : 'text-blue-600'}`}>New</p>
+                                <p className="text-2xl font-bold">{stats.new}</p>
+                            </div>
+                            <div className= {`${darkMode ? 'bg-yellow-900' : 'bg-yellow-100'} p-3 rounded`}>
+                                <p className= {`text-sm ${darkMode ? 'text-yellow-300' : 'text-yellow-600'}`}>Learning</p>
+                                <p className="text-2xl font-bold">{stats.learning}</p>
+                            </div>
+                            <div className= {`${darkMode ? 'bg-green-900' : 'bg-green-100'} p-3 rounded`}>
+                                <p className= {`text-sm ${darkMode ? 'text-green-300' : 'text-green-600'}`}>Mastered</p>
+                                <p className="text-2xl font-bold">{stats.mastered}</p>
+                            </div>
+                        </div>
+
+                        <h3 className="font-semibold mb-2">Progress</h3>
+                        <Progress value= {(stats.mastered / stats.total) * 100} className= {`mb-4 ${darkMode ? 'bg-gray-700' : ''}`} />
+                        <p className= {`text-sm ${darkMode ? 'text-gray-300' : 'text-gray-600'} mb-6`}>{Math.round((stats.mastered / stats.total) * 100)}% of flashcards mastered</p>
+
+                        <h3 className="font-semibold mb-2">Categories</h3>
+                        <div className="space-y-2 mb-4"> {categories.map(category => ( <Badge
+                                key= {category}
+                                variant= {selectedCategories.includes(category) ? "default" : "outline"}
+                            className={`cursor-pointer mr-2 mb-2 ${darkMode ? 'hover:bg-gray-700 text-white' : 'hover:bg-gray-100'}`}
+                            onClick={() => toggleCategory(category, selectedCategories, setSelectedCategories)}
+                        >
+                            {category}
+                        </Badge> ))} </div>
+                        <div className="flex space-x-2">
+                            <Input
+                                type="text"
+                                placeholder="New category"
+                                value= {newCategory}
+                                onChange= {(e)=> setNewCategory(e.target.value)}
+                className={darkMode ? 'bg-gray-700 border-gray-600 text-white' : ''}
+                            />
+                            <Button onClick= {()=> addCategory(newCategory, categories,
+                setFlashcards)}>Add</Button>
+                        </div>
+                    </div> {/* Edit/Add Card
+                Dialog */} <Dialog open= {editingCard !== null || isAddingCard} onOpenChange={() => { setEditingCard(null); setIsAddingCard(false); }}>
+                        <DialogContent className= {darkMode ? 'bg-gray-800 text-white' : ''}>
+                            <DialogHeader>
+                                <DialogTitle>{isAddingCard ? 'Add New Flashcard' : 'Edit Flashcard'}</DialogTitle>
+                            </DialogHeader>
+                            <form onSubmit= {(e)=> { e.preventDefault(); const formData = new
+                FormData(e.target); const card = Object.fromEntries(formData.entries());
+                saveCard(card, isAddingCard, setFlashcards, setIsAddingCard, setEditingCard); }}> <div
+                                    className="grid gap-4 py-4">
+                                    <div className="grid grid-cols-4 items-center gap-4">
+                                        <Label htmlFor="word" className="text-right">
+                                            Word
+                                        </Label>
+                                        <Input id="word" name="word" defaultValue= {editingCard?.word || ''} className={`col-span-3 ${darkMode ? 'bg-gray-700 border-gray-600 text-white' : ''}`} />
+                                    </div>
+                                    <div className="grid grid-cols-4 items-center gap-4">
+                                        <Label htmlFor="translation" className="text-right">
+                Translation
+                                        </Label>
+                                        <Input id="translation" name="translation" defaultValue= {editingCard?.translation || ''} className={`col-span-3 ${darkMode ? 'bg-gray-700 border-gray-600 text-white' : ''}`} />
+                                    </div>
+                                    <div className="grid grid-cols-4 items-center gap-4">
+                                        <Label htmlFor="category" className="text-right">
+                                            Category
+                                        </Label>
+                                        <Select defaultValue= {editingCard?.category || categories[1]} name="category">
+                                            <SelectTrigger className= {`col-span-3 ${darkMode ? 'bg-gray-700 border-gray-600 text-white' : ''}`}>
+                                                <SelectValue placeholder="Select category" />
+                                            </SelectTrigger>
+                                            <SelectContent className= {darkMode ? 'bg-gray-700 text-white border-gray-600' : ''}>
+                                        {categories.filter(cat => cat !== 'All').map(category => (
+                                            <SelectItem key= {category} value= {category}>
+                {category}</SelectItem> ))} </SelectContent>
+                                        </Select>
+                                    </div>
+                                    <div className="grid grid-cols-4 items-center gap-4">
+                                        <Label htmlFor="status" className="text-right">
+                                            Status
+                                        </Label>
+                                        <Select defaultValue= {editingCard?.status || 'New'} name="status">
+                                            <SelectTrigger className= {`col-span-3 ${darkMode ? 'bg-gray-700 border-gray-600 text-white' : ''}`}>
+                                                <SelectValue placeholder="Select status" />
+                                            </SelectTrigger>
+                                            <SelectContent className= {darkMode ? 'bg-gray-700 text-white border-gray-600' : ''}>
+                                        {STATUSES.filter(status => status !== 'All').map(status => (
+                                            <SelectItem key= {status} value= {status}>
+                {status}</SelectItem> ))} </SelectContent>
+                                        </Select>
+                                    </div>
+                                    <div className="grid grid-cols-4 items-center gap-4">
+                                        <Label htmlFor="notes" className="text-right">
+                                            Notes
+                                        </Label>
+                                        <Textarea id="notes" name="notes" defaultValue= {editingCard?.notes || ''} className={`col-span-3 ${darkMode ? 'bg-gray-700 border-gray-600 text-white' : ''}`} />
+                                    </div>
+                                </div>
+                        <DialogTrigger
+                                    asChild>
+                                    <Button type="submit" className= {darkMode ? 'bg-blue-600 hover:bg-blue-700' : ''}>{isAddingCard ? 'Add Card' : 'Save Changes'}</Button>
+                                </DialogTrigger>
+                            </form>
+                        </DialogContent>
+                    </Dialog>
+                {/* Settings Dialog */} <Dialog open= {isSettingsOpen} onOpenChange= {setIsSettingsOpen}>
+                        <DialogContent className= {darkMode ? 'bg-gray-800 text-white' : ''}>
+                            <DialogHeader>
+                                <DialogTitle>Settings</DialogTitle>
+                            </DialogHeader>
+                            <div className="py-4">
+                                <div className="flex items-center justify-between mb-4">
+                                    <span className="text-sm">Dark Mode</span>
+                                    <Switch checked= {darkMode} onCheckedChange= {setDarkMode} />
+                                </div>
+                                <div className="flex items-center justify-between mb-4">
+                                    <span className="text-sm">Font Size</span>
+                                    <Select value= {fontSize} onValueChange= {setFontSize}>
+                                        <SelectTrigger className= {`w-[120px] ${darkMode ? 'bg-gray-700 border-gray-600 text-white' : ''}`}>
+                                            <SelectValue placeholder="Font size" />
+                                        </SelectTrigger>
+                                        <SelectContent className= {darkMode ? 'bg-gray-700 text-white border-gray-600' : ''}>
+                                    {FONT_SIZES.map(size => (
+                                        <SelectItem key= {size} value= {size}>
+                {size}</SelectItem> ))} </SelectContent>
+                                    </Select>
+                                </div>
+                                <div className="flex items-center justify-between mb-4">
+                                    <span className="text-sm">Review Interval (days)</span>
+                                    <Input
+                                        type="number"
+                                        value= {reviewInterval}
+                                        onChange= {(e)=> setReviewInterval(e.target.value)}
+                className={`w-20 text-right ${darkMode ? 'bg-gray-700 border-gray-600 text-white' :
+                ''}`}
+                                    min="1"
+                                    max="30"
+                                    />
+                                </div>
+                            </div>
+                        </DialogContent>
+                    </Dialog>
+                {/* Filter Dialog */} <Dialog open= {isFilterOpen} onOpenChange= {setIsFilterOpen}>
+                        <DialogContent className= {darkMode ? 'bg-gray-800 text-white' : ''}>
+                            <DialogHeader>
+                                <DialogTitle>Filter Flashcards</DialogTitle>
+                            </DialogHeader>
+                            <div className="py-4">
+                                <h3 className="font-semibold mb-2">Categories</h3>
+                                <div className="space-y-2 mb-4"> {categories.map(category => ( <div
+                                        key= {category} className="flex items-center">
+                                        <Checkbox
+                                            id= {`category-${category}`}
+                                            checked= {selectedCategories.includes(category)}
+                                            onCheckedChange= {()=> toggleCategory(category,
+                selectedCategories, setSelectedCategories)}
+                                        className={`mr-2 ${darkMode ? 'border-gray-600' : ''}`}
+                                        />
+                                        <Label htmlFor= {`category-${category}`}>{category}</Label>
+                                    </div>
+                ))} </div>
+                                <h3 className="font-semibold mb-2">Status</h3>
+                                <Select value= {selectedStatus} onValueChange= {setSelectedStatus}>
+                                    <SelectTrigger className= {`w-full ${darkMode ? 'bg-gray-700 border-gray-600 text-white' : ''}`}>
+                                        <SelectValue placeholder="Select status" />
+                                    </SelectTrigger>
+                                    <SelectContent className= {darkMode ? 'bg-gray-700 text-white border-gray-600' : ''}>
+                                {STATUSES.map(status => (
+                                    <SelectItem key= {status} value= {status}>{status}</SelectItem>
+                ))} </SelectContent>
+                                </Select>
+                            </div>
+                        </DialogContent>
+                    </Dialog>
+                </div>
+                ) } </document_content>
+        </document>
+        <document index="11">
+            <source>app/manager/utils.ts</source>
+            <document_content>
+                import { toast } from "@/components/ui/use-toast"
+
+                export const addCategory = (newCategory, categories, setFlashcards) => {
+                if (newCategory && !categories.includes(newCategory)) {
+                setFlashcards(prev => [...prev, { id: Date.now(), word: '', translation: '',
+                category: newCategory, status: 'New', notes: '', lastReviewed: null }])
+                toast({
+                title: "Category Added",
+                description: `New category "${newCategory}" has been added.`,
+                })
+                }
+                }
+
+                export const toggleCategory = (category, selectedCategories, setSelectedCategories)
+                => {
+                setSelectedCategories(prev => {
+                if (category === 'All') {
+                return ['All']
+                } else {
+                const newCategories = prev.includes(category)
+                ? prev.filter(c => c !== category)
+                : [...prev.filter(c => c !== 'All'), category]
+                return newCategories.length === 0 ? ['All'] : newCategories
+                }
+                })
+                }
+
+                export const changeCardCategory = (cardId, newCategory, setFlashcards) => {
+                setFlashcards(prev => prev.map(card =>
+                card.id === cardId ? { ...card, category: newCategory } : card
+                ))
+                }
+
+                export const deleteCard = (cardId, setFlashcards) => {
+                setFlashcards(prev => prev.filter(card => card.id !== cardId))
+                toast({
+                title: "Card Deleted",
+                description: "The flashcard has been deleted.",
+                variant: "destructive",
+                })
+                }
+
+                export const updateCardStatus = (cardId, newStatus, setFlashcards) => {
+                setFlashcards(prev => prev.map(card =>
+                card.id === cardId ? { ...card, status: newStatus, lastReviewed: new
+                Date().toISOString().split('T')[0] } : card
+                ))
+                toast({
+                title: "Status Updated",
+                description: `Card status changed to ${newStatus}.`,
+                })
+                }
+
+                export const saveCard = (card, isAddingCard, setFlashcards, setIsAddingCard,
+                setEditingCard) => {
+                if (isAddingCard) {
+                setFlashcards(prev => [...prev, { ...card, id: Date.now(), lastReviewed: null }])
+                setIsAddingCard(false)
+                toast({
+                title: "Card Added",
+                description: "New flashcard has been added.",
+                })
+                } else {
+                setFlashcards(prev => prev.map(c => c.id === card.id ? card : c))
+                setEditingCard(null)
+                toast({
+                title: "Card Updated",
+                description: "Flashcard has been updated.",
+                })
+                }
+                }
+
+                export const exportToCSV = (flashcards) => {
+                const csvContent = [
+                ['id', 'word', 'translation', 'category', 'status', 'notes', 'lastReviewed'],
+                ...flashcards.map(card => [card.id, card.word, card.translation, card.category,
+                card.status, card.notes, card.lastReviewed])
+                ].map(e => e.join(',')).join('\n')
+
+                const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+                const link = document.createElement('a')
+                if (link.download !== undefined) {
+                const url = URL.createObjectURL(blob)
+                link.setAttribute('href', url)
+                link.setAttribute('download', 'flashcards.csv')
+                link.style.visibility = 'hidden'
+                document.body.appendChild(link)
+                link.click()
+                document.body.removeChild(link)
+                }
+                }
+
+                export const importFromCSV = (event, setFlashcards) => {
+                const file = event.target.files[0]
+                if (file) {
+                const reader = new FileReader()
+                reader.onload = (e) => {
+                const content = e.target.result
+                const lines = content.split('\n')
+                const headers = lines[0].split(',')
+                const newFlashcards = lines.slice(1).map(line => {
+                const values = line.split(',')
+                return headers.reduce((obj, header, index) => {
+                obj[header] = values[index]
+                return obj
+                }, {})
+                })
+                setFlashcards(newFlashcards)
+                toast({
+                title: "Import Successful",
+                description: `${newFlashcards.length} flashcards have been imported.`,
+                })
+                }
+                reader.readAsText(file)
+                }
+                }
+
+                export const pronounceWord = (word) => {
+                const utterance = new SpeechSynthesisUtterance(word)
+                speechSynthesis.speak(utterance)
+                }
+
+                export const toggleCardSelection = (cardId, selectedCards, setSelectedCards) => {
+                setSelectedCards(prev =>
+                prev.includes(cardId) ? prev.filter(id => id !== cardId) : [...prev, cardId]
+                )
+                }
+
+                export const handleBulkAction = (action, selectedCards, flashcards, setFlashcards,
+                setSelectedCards) => {
+                switch (action) {
+                case 'delete':
+                setFlashcards(prev => prev.filter(card => !selectedCards.includes(card.id)))
+                toast({
+                title: "Bulk Delete",
+                description: `${selectedCards.length} cards have been deleted.`,
+                variant: "destructive",
+                })
+                break
+                case 'export':
+                const selectedFlashcards = flashcards.filter(card =>
+                selectedCards.includes(card.id))
+                exportToCSV(selectedFlashcards)
+                toast({
+                title: "Bulk Export",
+                description: `${selectedCards.length} cards have been exported.`,
+                })
+                break
+                default:
+                break
+                }
+                setSelectedCards([])
+                }
+
+                export const selectAllCards = (filteredFlashcards, selectedCards, setSelectedCards)
+                => {
+                if (selectedCards.length === filteredFlashcards.length) {
+                setSelectedCards([])
+                } else {
+                setSelectedCards(filteredFlashcards.map(card => card.id))
+                }
+                }
+</document_content>
+        </document>
+        <document index="12">
+            <source>app/page.tsx</source>
+            <document_content> 'use client' import { useRef } from 'react' import Link from
+                "next/link" import { useSession } from "next-auth/react" import { Button } from
+                "@/components/ui/button" import { Input } from "@/components/ui/input" import {
+                Textarea } from "@/components/ui/textarea" import { Icons } from
+                "@/components/ui/icons" import SignOutButton from
+                '@/components/common/SignOutButton' export default function RecallAIPage() { const {
+                data: session } = useSession() const featuresRef = useRef<HTMLElement>(null) const
+                aboutRef = useRef<HTMLElement>(null) const contactRef = useRef<HTMLElement>(null)
+                const scrollToSection = (ref: React.RefObject<HTMLElement>) => { if (ref.current) {
+                ref.current.scrollIntoView({ behavior: 'smooth', block: 'start' }) } } return ( <div
+                    className="flex flex-col min-h-screen bg-gradient-to-b from-background to-muted">
+                    <header
+                        className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+                        <div className="container flex h-14 items-center">
+                            <Link className="flex items-center justify-center ml-4" href="#">
+                                <Icons.mainIcon className="w-8 h-8 mr-2" />
+                                <span
+                                    className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-500 to-pink-500">Recall
+                AI</span>
+                            </Link>
+                            <nav className="ml-auto flex items-center gap-4 sm:gap-6">
+                                <Link
+                                    href="#features"
+                                    onClick= {(e)=> {
+                                    e.preventDefault()
+                                    scrollToSection(featuresRef)
+                                    }}
+                                    className="text-sm font-medium hover:text-primary"
+                                    >
+                                    Features
+                                </Link>
+            <Link
+                                    href="#about"
+                                    onClick= {(e)=> {
+                                    e.preventDefault()
+                                    scrollToSection(aboutRef)
+                                    }}
+                                    className="text-sm font-medium hover:text-primary"
+                                    >
+                                    About
+                                </Link>
+            <Link
+                                    href="#contact"
+                                    onClick= {(e)=> {
+                                    e.preventDefault()
+                                    scrollToSection(contactRef)
+                                    }}
+                                    className="text-sm font-medium hover:text-primary"
+                                    >
+                                    Contact
+                                </Link>
+                {session ? ( <SignOutButton /> ) : ( <Button size="sm" variant="outline"
+                                    className="bg-black text-white font-bold">
+                                    <Link href="/signin">Sign In</Link>
+                                </Button>
+                )} </nav>
+                        </div>
+                    </header>
+                    <main className="flex-1">
+                        <section className="w-full py-12 md:py-24 lg:py-32 xl:py-48">
+                            <div className="container px-4 md:px-6">
+                                <div
+                                    className="grid gap-6 lg:grid-cols-[1fr_400px] lg:gap-12 xl:grid-cols-[1fr_600px]">
+                                    <div className="flex flex-col justify-center space-y-8">
+                                        <div className="space-y-6">
+                                            <h1
+                                                className="text-4xl font-bold tracking-tighter sm:text-5xl xl:text-6xl/none">
+                Learn as you <span className="text-blue-500">read</span>
+                                            </h1>
+                                            <p
+                                                className="max-w-[600px] text-muted-foreground md:text-xl space-y-2">
+                                                <span className="block">Turn any document into an
+                interactive learning experience with AI.</span>
+                                                <span className="block">Read once, remember forever
+                ...</span>
+                                            </p>
+                                        </div>
+                                        <div className="flex flex-col gap-4 min-[400px]:flex-row">
+                {session ? ( <Button size="lg"
+                                                className="bg-green-500 hover:bg-green-600 text-white font-bold">
+                                                <Link href="/main">Go to App</Link>
+                                            </Button>
+                ) : ( <Button size="lg"
+                                                className="bg-green-500 hover:bg-green-600 text-white font-bold">
+                                                <Link href="/signin">Get Started</Link>
+                                            </Button>
+                )} <Button
+                                                size="lg"
+                                                variant="outline"
+                                                onClick= {(e)=> {
+                                                e.preventDefault()
+                                                scrollToSection(featuresRef)
+                                                }}
+                                                >
+                                                Learn More
+                                            </Button>
+                                        </div>
+                                    </div>
+                                    <div className="flex items-center justify-center">
+                                        <div
+                                            className="relative w-[300px] h-[300px] sm:w-[400px] sm:h-[400px]">
+                                            <div
+                                                className="absolute inset-0 bg-gradient-to-r from-blue-500 to-teal-500 rounded-full blur-2xl opacity-20 animate-pulse"></div>
+                                            <div
+                                                className="relative bg-background border rounded-lg shadow-2xl p-6 backdrop-blur-sm">
+                                                <div className="space-y-2">
+                                                    <div
+                                                        className="h-4 w-3/4 bg-muted-foreground/20 rounded"></div>
+                                                    <div
+                                                        className="h-4 w-1/2 bg-muted-foreground/20 rounded"></div>
+                                                    <div
+                                                        className="h-4 w-5/6 bg-muted-foreground/20 rounded"></div>
+                                                </div>
+                                                <div className="mt-4 grid grid-cols-2 gap-2">
+                                                    <div className="h-8 bg-primary/20 rounded"></div>
+                                                    <div className="h-8 bg-primary/20 rounded"></div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </section>
+                        <section id="features" ref= {featuresRef} className="w-full py-12 md:py-24 lg:py-32">
+                            <div className="container px-4 md:px-6">
+                                <h2
+                                    className="text-3xl font-bold tracking-tighter sm:text-5xl text-center mb-12">
+                Features</h2>
+                                <div className="grid gap-10 sm:grid-cols-2 lg:grid-cols-3">
+                                    <div
+                                        className="flex flex-col items-center space-y-4 text-center">
+                                        <div className="p-4 bg-primary/10 rounded-full">
+                                            <Icons.book className="h-10 w-10 text-primary" />
+                                        </div>
+                                        <h3 className="text-xl font-bold">Multi-format Document
+                Support</h3>
+                                        <p className="text-muted-foreground">Read PDF and EPUB files
+                within the app with a smooth, integrated viewing experience.</p>
+                                    </div>
+                                    <div
+                                        className="flex flex-col items-center space-y-4 text-center">
+                                        <div className="p-4 bg-primary/10 rounded-full">
+                                            <Icons.languages className="h-10 w-10 text-primary" />
+                                        </div>
+                                        <h3 className="text-xl font-bold">Language Learning on the
+                Fly</h3>
+                                        <p className="text-muted-foreground">Generate translations
+                and create language flashcards instantly as you read.</p>
+                                    </div>
+                                    <div
+                                        className="flex flex-col items-center space-y-4 text-center">
+                                        <div className="p-4 bg-primary/10 rounded-full">
+                                            <Icons.flashcard className="h-10 w-10 text-primary" />
+                                        </div>
+                                        <h3 className="text-xl font-bold">Dynamic Flashcard Creation</h3>
+                                        <p className="text-muted-foreground">Generate customizable
+                flashcards from selected text as you read for personalized learning.</p>
+                                    </div>
+                                    <div
+                                        className="flex flex-col items-center space-y-4 text-center">
+                                        <div className="p-4 bg-primary/10 rounded-full">
+                                            <Icons.chat className="h-10 w-10 text-primary" />
+                                        </div>
+                                        <h3 className="text-xl font-bold">Contextual Explanations</h3>
+                                        <p className="text-muted-foreground">Get instant
+                explanations for complex concepts and discuss content with AI-powered chat.</p>
+                                    </div>
+                                    <div
+                                        className="flex flex-col items-center space-y-4 text-center">
+                                        <div className="p-4 bg-primary/10 rounded-full">
+                                            <Icons.brain className="h-10 w-10 text-primary" />
+                                        </div>
+                                        <h3 className="text-xl font-bold">Active Recall Learning</h3>
+                                        <p className="text-muted-foreground">Review generated
+                flashcards with a spaced repetition system for optimized learning and retention.</p>
+                                    </div>
+                                    <div
+                                        className="flex flex-col items-center space-y-4 text-center">
+                                        <div className="p-4 bg-primary/10 rounded-full">
+                                            <Icons.integrate className="h-10 w-10 text-primary" />
+                                        </div>
+                                        <h3 className="text-xl font-bold">Seamless Integration</h3>
+                                        <p className="text-muted-foreground">Switch effortlessly
+                between reading and learning modes while maintaining context.</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </section>
+                        <section id="about" ref= {aboutRef}
+                            className="w-full py-12 md:py-24 lg:py-32 bg-muted">
+                            <div className="container px-4 md:px-6">
+                                <h2
+                                    className="text-3xl font-bold tracking-tighter sm:text-5xl text-center mb-12">About
+                Recall AI</h2>
+                                <div className="max-w-3xl mx-auto space-y-6">
+                                    <p className="text-xl text-muted-foreground">
+                                        Recall AI is an innovative reading and learning application
+                designed to enhance your knowledge acquisition and retention while reading digital
+                documents.
+                                    </p>
+                                    <p className="text-muted-foreground">
+                                        Our mission is to transform passive reading into an active,
+                engaging learning experience. By allowing users to interact with content in
+                real-time, create personalized learning materials, and reinforce their knowledge
+                through active recall, Recall AI helps users to not just read, but truly absorb and
+                retain information from their digital documents.
+                                    </p>
+                                    <p className="text-muted-foreground">
+                                        Whether you're a student studying for exams, a professional
+                staying up-to-date in your field, or a lifelong learner exploring new subjects,
+                Recall AI provides the tools you need to maximize your learning efficiency and
+                effectiveness.
+                                    </p>
+                                    <h3 className="text-2xl font-bold mt-8 mb-4">Our Team</h3>
+                                    <p className="text-muted-foreground">
+                                        Recall AI was founded by a team of passionate educators,
+                technologists, and lifelong learners. We combine expertise in cognitive science,
+                artificial intelligence, and user experience design to create a tool that truly
+                enhances the learning process.
+                                    </p>
+                                    <h3 className="text-2xl font-bold mt-8 mb-4">Our Technology</h3>
+                                    <p className="text-muted-foreground">
+                                        Recall AI leverages cutting-edge AI technologies to provide
+                features like instant translations, contextual explanations, and dynamic flashcard
+                creation. We're constantly innovating to bring you the best learning experience
+                possible.
+                                    </p>
+                                </div>
+                            </div>
+                        </section>
+                        <section className="w-full py-12 md:py-24 lg:py-32 bg-muted">
+                            <div className="container px-4 md:px-6">
+                                <h2
+                                    className="text-3xl font-bold tracking-tighter sm:text-4xl md:text-5xl text-center mb-12">
+                Powered by AI
+                                </h2>
+                                <div
+                                    className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-8 place-items-center">
+                                    <Icons.openai className="h-16 w-16 text-[#412991]" />
+                                    <Icons.claude className="h-16 w-16 text-[#7C3AED]" />
+                                </div>
+                            </div>
+                        </section>
+                        <section id="contact" ref= {contactRef} className="w-full py-12 md:py-24 lg:py-32">
+                            <div className="container px-4 md:px-6">
+                                <h2
+                                    className="text-3xl font-bold tracking-tighter sm:text-5xl text-center mb-12">Contact
+                Us</h2>
+                                <div className="max-w-2xl mx-auto space-y-6">
+                                    <p className="text-xl text-muted-foreground text-center mb-8">
+                Have questions or feedback? We'd love to hear from you. Fill out the form below and
+                we'll get back to you as soon as possible.
+                                    </p>
+                                    <form className="space-y-4">
+                                        <div className="grid grid-cols-2 gap-4">
+                                            <div className="space-y-2">
+                                                <label htmlFor="first-name"
+                                                    className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">First
+                name</label>
+                                                <Input id="first-name"
+                                                    placeholder="Enter your first name" />
+                                            </div>
+                                            <div className="space-y-2">
+                                                <label htmlFor="last-name"
+                                                    className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">Last
+                name</label>
+                                                <Input id="last-name"
+                                                    placeholder="Enter your last name" />
+                                            </div>
+                                        </div>
+                                        <div className="space-y-2">
+                                            <label htmlFor="email"
+                                                className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                Email</label>
+                                            <Input id="email" placeholder="Enter your email"
+                                                type="email" />
+                                        </div>
+                                        <div className="space-y-2">
+                                            <label htmlFor="message"
+                                                className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                Message</label>
+                                            <Textarea id="message" placeholder="Enter your message" />
+                                        </div>
+                                        <Button type="submit" className="w-full">Send Message</Button>
+                                    </form>
+                                </div>
+                            </div>
+                        </section>
+                    </main>
+                    <footer className="border-t bg-background">
+                        <div
+                            className="container flex flex-col gap-2 sm:flex-row py-6 w-full shrink-0 items-center px-4 md:px-6">
+                            <p className="text-xs text-muted-foreground">© 2023 Recall AI. All
+                rights reserved.</p>
+                            <nav className="sm:ml-auto flex gap-4 sm:gap-6">
+                                <Link className="text-xs hover:underline underline-offset-4"
+                                    href="#">
+                                    Terms of Service
+                                </Link>
+                                <Link className="text-xs hover:underline underline-offset-4"
+                                    href="#">
+                                    Privacy
+                                </Link>
+                            </nav>
+                        </div>
+                    </footer>
+                </div>
+                ) }             </document_content>
+        </document>
+        <document index="13">
+            <source>app/practice/page.tsx</source>
+            <document_content> 'use client' import React, { useState, useCallback, useEffect } from
+                'react' import { X, MoreVertical, Eye, EyeOff, Shuffle } from 'lucide-react' import
+                { Volume2 } from 'lucide-react' import { Button } from "@/components/ui/button"
+                import { Checkbox } from "@/components/ui/checkbox" import { Label } from
+                "@/components/ui/label" import { Switch } from "@/components/ui/switch" import {
+                Input } from "@/components/ui/input" import { Dialog, DialogContent, DialogHeader,
+                DialogTitle, DialogTrigger, } from "@/components/ui/dialog" type Flashcard = { id:
+                number word: string translation: string example: string notes: string category:
+                string } type ExerciseType = 'Classic' | 'MultipleChoice' | 'FillInTheBlank' |
+                'Audio' | 'Matching' const exerciseTypes: ExerciseType[] = ['Classic',
+                'MultipleChoice', 'FillInTheBlank', 'Audio', 'Matching'] const initialFlashcards:
+                Flashcard[] = [ { id: 1, word: 'Impetus', translation: 'động lực', example: 'The new
+                policy provided the <b>impetus</b> for change.', notes: 'A force that causes
+                something to happen or move forward.', category: 'Academic' }, { id: 2, word:
+                'Meticulously', translation: 'tỉ mỉ', example: 'She <b>meticulously</b> checked
+                every detail of the report.', notes: 'Done with extreme care and precision.',
+                category: 'Academic' }, { id: 3, word: 'Testament', translation: 'di chúc, di sản',
+                example: 'His success is a <b>testament</b> to his hard work.', notes: 'Something
+                that serves as evidence or proof.', category: 'Academic' } ] export default function
+                Component() { const [flashcards, setFlashcards] = useState<Flashcard []>(initialFlashcards)
+                const [selectedExercises, setSelectedExercises] = useState<ExerciseType []>(['Classic'])
+                const [isSessionStarted, setIsSessionStarted] = useState(false) const
+                [currentFlashcardIndex, setCurrentFlashcardIndex] = useState(0) const [showInfo,
+                setShowInfo] = useState(false) const [showTranslation, setShowTranslation] =
+                useState(false) const [isShuffled, setIsShuffled] = useState(false) const [progress,
+                setProgress] = useState(0) const [showAnswerButtons, setShowAnswerButtons] =
+                useState(false) const [matchingPairs, setMatchingPairs] = useState<{ word: string; translation: string }[]>([]) const
+                [selectedPair, setSelectedPair] = useState<string []>([]) const [matchedPairs,
+                setMatchedPairs] = useState<string []>([]) const [multipleChoiceOptions,
+                setMultipleChoiceOptions] = useState<string []>([]) const [selectedAnswer,
+                setSelectedAnswer] = useState<string | null>(null) const [fillInTheBlankAnswer,
+                setFillInTheBlankAnswer] = useState('') const [fillInTheBlankFeedback,
+                setFillInTheBlankFeedback] = useState<string | null>(null) const handleExerciseToggle =
+                (exerciseType: ExerciseType) => { setSelectedExercises(prev =>
+                prev.includes(exerciseType) ? prev.filter(type => type !== exerciseType) : [...prev,
+                exerciseType] ) } const handleAnswer = (correct: boolean) => { setProgress(prev =>
+                Math.min(prev + (100 / flashcards.length), 100)) setCurrentFlashcardIndex(prev =>
+                (prev + 1) % flashcards.length) setShowTranslation(false)
+                setShowAnswerButtons(false) setSelectedAnswer(null) setFillInTheBlankAnswer('')
+                setFillInTheBlankFeedback(null) if (selectedExercises.includes('MultipleChoice')) {
+                generateMultipleChoiceOptions() } } const startSession = useCallback(() => {
+                setIsSessionStarted(true) setProgress(0) setCurrentFlashcardIndex(0) if (isShuffled)
+                { setFlashcards(prevCards => [...prevCards].sort(() => Math.random() - 0.5)) } if
+                (selectedExercises.includes('Matching')) { const pairs = flashcards.map(card => ({
+                word: card.word, translation: card.translation })) setMatchingPairs(pairs.sort(() =>
+                Math.random() - 0.5)) } if (selectedExercises.includes('MultipleChoice')) {
+                generateMultipleChoiceOptions() } setMatchedPairs([]) }, [isShuffled, flashcards,
+                selectedExercises]) const endSession = () => { setIsSessionStarted(false)
+                setProgress(0) } const toggleShuffle = () => { setIsShuffled(prev => !prev) } const
+                speakWord = (word: string) => { const utterance = new SpeechSynthesisUtterance(word)
+                window.speechSynthesis.speak(utterance) } const navigateFlashcard = (direction:
+                'prev' | 'next') => { setCurrentFlashcardIndex(prev => { if (direction === 'prev') {
+                return prev === 0 ? flashcards.length - 1 : prev - 1 } else { return (prev + 1) %
+                flashcards.length } }) setShowTranslation(false) setShowAnswerButtons(false)
+                setSelectedAnswer(null) setFillInTheBlankAnswer('') setFillInTheBlankFeedback(null)
+                if (selectedExercises.includes('MultipleChoice')) { generateMultipleChoiceOptions()
+                } } const handlePairSelection = (item: string) => { setSelectedPair(prev => { if
+                (prev.length === 0) return [item] if (prev.length === 1) { const pair =
+                matchingPairs.find(p => p.word === prev[0] || p.translation === prev[0]) if (pair &&
+                (pair.word === item || pair.translation === item)) { setMatchingPairs(prevPairs =>
+                prevPairs.filter(p => p !== pair)) setMatchedPairs(prevMatched => [...prevMatched,
+                pair.word, pair.translation]) return [] } return [] } return [item] }) } const
+                generateMultipleChoiceOptions = () => { const currentFlashcard =
+                flashcards[currentFlashcardIndex] const otherTranslations = flashcards .filter(card
+                => card.id !== currentFlashcard.id) .map(card => card.translation) const options =
+                [currentFlashcard.translation, ...otherTranslations.slice(0, 3)]
+                setMultipleChoiceOptions(options.sort(() => Math.random() - 0.5)) } const
+                handleFillInTheBlankSubmit = () => { const currentFlashcard =
+                flashcards[currentFlashcardIndex] if (fillInTheBlankAnswer.toLowerCase() ===
+                currentFlashcard.word.toLowerCase()) { setFillInTheBlankFeedback('Correct!') } else
+                { setFillInTheBlankFeedback(`Incorrect. The correct answer is
+                "${currentFlashcard.word}".`) } } useEffect(() => { if (matchingPairs.length === 0
+                && isSessionStarted) { setProgress(100) } }, [matchingPairs, isSessionStarted])
+                const renderSetupSession = () => ( <div
+                    className="bg-white rounded-lg shadow-lg p-8">
+                    <h2 className="text-3xl font-bold mb-6 text-blue-800">Choose Exercise Types</h2>
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-6 mb-8">
+                {exerciseTypes.map((type) => ( <div key= {type} className="flex items-center space-x-3">
+                            <Checkbox
+                                id= {type}
+                                checked= {selectedExercises.includes(type)}
+                                onCheckedChange= {()=> handleExerciseToggle(type)}
+                            />
+                            <Label htmlFor= {type} className="text-lg text-gray-700">{type}</Label>
+                        </div> ))} </div>
+                    <div className="flex items-center justify-between mb-8">
+                        <div className="flex items-center space-x-3">
+                            <Switch
+                                id="shuffle"
+                                checked= {isShuffled}
+                                onCheckedChange= {setIsShuffled}
+                            />
+                            <Label htmlFor="shuffle" className="text-lg text-gray-700">Shuffle Cards</Label>
+                        </div>
+                    </div>
+                    <Button
+                        onClick= {startSession}
+                        className="w-full py-4 bg-blue-600 text-white text-xl font-semibold rounded-lg hover:bg-blue-700 transition-colors shadow-md"
+                        disabled= {flashcards.length=== 0 || selectedExercises.length === 0}
+            >
+                Start Session
+            </Button>
+                </div> ) const
+                renderExercise = () => { if (flashcards.length === 0) { return <div
+                    className="text-center text-gray-600">No flashcards available.</div> } if
+                (selectedExercises.includes('Matching') && matchingPairs.length > 0) { return ( <div
+                    className="space-y-6">
+                    <h2 className="text-3xl font-bold text-center text-blue-800">Matching Exercise</h2>
+                    <div className="grid grid-cols-2 gap-4"> {['word', 'translation'].map((type) =>
+                ( <div key= {type} className="space-y-4"> {matchingPairs.map((pair, index) => ( <button
+                                key= {`${type}-${index}`}
+                                onClick= {()=> handlePairSelection(pair[type as keyof typeof
+                pair])}
+                                className={`w-full p-4 text-lg rounded-lg transition-colors
+                ${selectedPair.includes(pair[type as keyof typeof pair])
+                                ? 'bg-blue-500 text-white'
+                                : 'bg-white hover:bg-blue-100'
+                                } ${matchedPairs.includes(pair[type as keyof typeof pair])
+                                ? 'bg-green-500 text-white'
+                                : ''
+                                } shadow-md`}
+                                disabled={matchedPairs.includes(pair[type as keyof typeof pair])}
+                                >
+                                {pair[type as keyof typeof pair]}
+                            </button>
+                ))} </div> ))} </div>
+                </div> ) } const currentFlashcard =
+                flashcards[currentFlashcardIndex] return ( <div className="space-y-8">
+                    <div className="text-center">
+                        <h2 className="text-4xl mb-4 flex items-center justify-center">
+                            <button
+                                className="text-blue-600 mr-4 hover:text-blue-800 transition-colors"
+                                onClick= {()=> speakWord(currentFlashcard.word)} > <Volume2
+                                    size= {32} />
+                            </button>
+                            <span className="font-bold text-blue-900">
+                {selectedExercises.includes('FillInTheBlank') ? '________' : currentFlashcard.word}
+                            </span>
+                        </h2>
+                {showTranslation && ( <p className="text-xl text-emerald-600 italic mt-2">
+                {currentFlashcard.translation}</p> )} </div>
+                <div
+                        dangerouslySetInnerHTML= {{ __html: currentFlashcard.example }}
+                        className="text-lg text-gray-700 bg-white p-6 rounded-lg shadow-md"
+                    />
+                {selectedExercises.includes('FillInTheBlank') ? ( <div className="space-y-4">
+                        <div className="flex justify-center space-x-4">
+                            <input
+                                value= {fillInTheBlankAnswer}
+                                onChange= {(e)=> setFillInTheBlankAnswer(e.target.value)}
+                placeholder="Type your answer"
+                            className="max-w-xs p-3 text-lg border-2 border-blue-300 rounded-md
+                focus:outline-none focus:border-blue-500"
+                            />
+                            <Button onClick= {handleFillInTheBlankSubmit} className="text-lg">Submit</Button>
+                        </div>
+                {fillInTheBlankFeedback && ( <p className= {`text-xl text-center ${fillInTheBlankFeedback.startsWith('Correct' ) ? 'text-green-500' : 'text-red-500'}`}>
+                                {fillInTheBlankFeedback}
+                            </p> )} </div> ) :
+                selectedExercises.includes('MultipleChoice') ? ( <div className="space-y-4">
+                {multipleChoiceOptions.map((option, index) => ( <button
+                            key= {index}
+                            onClick= {()=> setSelectedAnswer(option)}
+                            className={`w-full p-4 text-lg rounded-lg transition-colors
+                ${selectedAnswer !== null
+                            ? option === currentFlashcard.translation
+                            ? 'bg-green-500 text-white'
+                            : selectedAnswer === option
+                            ? 'bg-red-500 text-white'
+                            : 'bg-white'
+                            : 'bg-white hover:bg-blue-100'
+                            } shadow-md`}
+                            disabled={selectedAnswer !== null}
+                            >
+                            {option}
+                        </button>
+                ))} </div> ) : ( <div className="flex justify-center"> {!showTranslation && ( <Button
+                            onClick= {()=> {
+                            setShowTranslation(true)
+                            setShowAnswerButtons(true)
+                            }}
+                            className="w-full max-w-md p-4 text-xl bg-blue-600 text-white
+                font-semibold rounded-lg hover:bg-blue-700 transition-colors"
+                            >
+                            Show Translation
+                        </Button>
+                )} </div> )} {showInfo && ( <div
+                        className="bg-white rounded-lg p-6 shadow-lg text-blue-800 text-lg">
+                {currentFlashcard.notes}
+                    </div> )} </div>
+                ) } return ( <div
+                    className="flex flex-col h-screen bg-gradient-to-br from-blue-100 to-sky-200 font-sans text-gray-900">
+                {isSessionStarted ? ( <>
+                        <header className="border-b-2 border-blue-300 p-6">
+                            <div className="max-w-4xl mx-auto flex items-center justify-between">
+                                <button
+                                    className="text-blue-700 hover:text-blue-900 transition-colors"
+                                    onClick= {endSession}>
+                                    <X size= {28} />
+                                </button>
+                                <div
+                                    className="flex-grow mx-6 bg-white h-6 rounded-full shadow-md overflow-hidden">
+                                    <div
+                                        className="bg-blue-600 h-full rounded-full transition-all duration-500 ease-in-out"
+                                        style= {{ width: `${progress}%` }}></div>
+                                </div>
+                                <Dialog>
+                                    <DialogTrigger asChild>
+                                        <button
+                                            className="text-blue-700 hover:text-blue-900 transition-colors">
+                                            <MoreVertical size= {28} />
+                                        </button>
+                                    </DialogTrigger>
+                                    <DialogContent>
+                                        <DialogHeader>
+                                            <DialogTitle>Session Settings</DialogTitle>
+                                        </DialogHeader>
+                                        <div className="space-y-4">
+                                            <div className="flex items-center space-x-2">
+                                                <Switch
+                                                    id="shuffle"
+                                                    checked= {isShuffled}
+                                                    onCheckedChange= {setIsShuffled}
+                                                />
+                                                <Label htmlFor="shuffle">Shuffle Cards</Label>
+                                            </div>
+                                        </div>
+                                    </DialogContent>
+                                </Dialog>
+                            </div>
+                        </header>
+                        <main className="flex-grow overflow-y-auto py-8">
+                            <div className="max-w-4xl mx-auto px-6">
+                                <h3 className="text-blue-800 mb-8 uppercase text-lg font-semibold">Practice
+                Session</h3> {renderExercise()} </div>
+                        </main>
+                        <footer className="border-t-2 border-blue-300 p-6">
+                            <div
+                                className="max-w-4xl mx-auto flex justify-between items-center space-x-6">
+                                <button
+                                    className="p-3 border-2 border-blue-400 rounded-full hover:bg-blue-200 transition-colors text-blue-800"
+                                    onClick= {()=> setShowInfo(!showInfo)} > {showInfo ? <EyeOff
+                                        size= {24} /> : <Eye size= {24} />} </button>
+                                <button
+                                    className="p-3 border-2 border-blue-400 rounded-full hover:bg-blue-200 transition-colors text-blue-800"
+                                    onClick= {toggleShuffle}
+                                >
+                                    <Shuffle size= {24} />
+                                </button>
+                                <button
+                                    className="flex-grow py-3 px-6 bg-blue-600 text-white text-xl font-semibold rounded-lg hover:bg-blue-700 transition-colors shadow-md"
+                                    onClick= {()=> navigateFlashcard('next')}
+                                    >
+                                    Continue
+                                </button>
+                            </div>
+                        </footer>
+                    </>
+                ) : ( <main className="flex-grow flex items-center justify-center p-6">
+                        <div className="w-full max-w-2xl">
+                            {renderSetupSession()}
+                        </div>
+                    </main>
+                )} </div> ) }             </document_content>
+        </document>
+        <document index="14">
+            <source>app/signin/page.tsx</source>
+            <document_content> 'use client' import { signIn } from 'next-auth/react' import { Button
+                } from '@/components/ui/button' import { Icons } from '@/components/ui/icons' import
+                { CardTitle } from '@/components/ui/card' import Link from 'next/link' export
+                default function SignIn() { const handleSignIn = (provider: string) => {
+                signIn(provider, { callbackUrl: '/main' }) } return ( <div
+                    className="flex min-h-screen bg-background relative overflow-hidden">
+                    <div
+                        className="absolute inset-0 bg-gradient-to-r from-blue-500 to-teal-500 opacity-20 blur-3xl"></div>
+                    <div
+                        className="flex flex-col justify-center w-full px-4 py-12 sm:px-6 lg:flex-none lg:px-20 xl:px-24 relative z-10">
+                        <div
+                            className="w-full max-w-sm mx-auto lg:w-96 bg-white/80 backdrop-blur-sm rounded-lg shadow-lg p-8">
+                            <div className="flex justify-center mb-8">
+                                <Link href="/" className="flex items-center space-x-2">
+                                    <Icons.mainIcon className="w-8 h-8" />
+                                    <span
+                                        className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-500 to-pink-500">Recall
+                AI</span>
+                                </Link>
+                            </div>
+                            <div className="text-center mb-8">
+                                <CardTitle className="text-2xl font-semibold text-center">Sign in to
+                your account</CardTitle>
+                                <p className="mt-2 text-sm text-muted-foreground"> Don't have an
+                account?{" "} <Link href="/signup"
+                                        className="font-medium text-primary hover:underline">
+                                        Sign up
+                                    </Link>
+                                </p>
+                            </div>
+                            <div className="space-y-6">
+                                <div className="grid grid-cols-1 gap-4">
+                                    <Button
+                                        onClick= {()=> handleSignIn('google')} variant="outline"
+                className="w-full bg-white/90 hover:bg-white/95 text-gray-800 border-gray-300" > <Icons.google
+                                            className="w-4 h-4 mr-2" /> Sign in with Google </Button>
+                                    <Button
+                                        onClick= {()=> handleSignIn('github')} variant="outline"
+                className="w-full bg-white/90 hover:bg-white/95 text-gray-800 border-gray-300" > <Icons.github
+                                            className="w-4 h-4 mr-2" /> Sign in with GitHub </Button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div className="relative flex-1 hidden w-0 lg:block">
+                        <div
+                            className="absolute inset-0 bg-gradient-to-r from-blue-500 to-teal-500 opacity-20 blu.eca3xl"></div>
+                    </div>
+                </div>
+                ) } </document_content>
+        </document>
+        <document index="15">
+            <source>app/slices/fileSlice.ts</source>
+            <document_content> import { createSlice, PayloadAction } from '@reduxjs/toolkit';
+                interface FileState { currentFile: File | null; recentFiles: Array<{ name: string; progress: number }>; } const
+                initialState: FileState = { currentFile: null, recentFiles: [], }; const fileSlice =
+                createSlice({ name: 'file', initialState, reducers: { setCurrentFile: (state,
+                action: PayloadAction<File | null>) => { state.currentFile = action.payload; },
+                addRecentFile: (state, action: PayloadAction<{ name: string; progress: number }>) => { state.recentFiles = [
+                action.payload, ...state.recentFiles.filter(f => f.name !==
+                action.payload.name).slice(0, 4) ]; }, }, }); export const { setCurrentFile,
+                addRecentFile } = fileSlice.actions; export default fileSlice.reducer;             </document_content>
+        </document>
+        <document index="16">
+            <source>app/slices/flashcardsSlice.ts</source>
+            <document_content> import { createSlice, PayloadAction } from '@reduxjs/toolkit';
+                interface Flashcard { id?: string; question: string; answer: string; } const
+                initialState: Flashcard[] = []; const flashcardsSlice = createSlice({ name:
+                'flashcards', initialState, reducers: { addFlashcard: (state, action: PayloadAction<Flashcard>)
+                => { state.push(action.payload); }, removeFlashcard: (state, action: PayloadAction<number>)
+                => { state.splice(action.payload, 1); }, clearFlashcards: (state) => { return []; },
+                }, }); export const { addFlashcard, removeFlashcard, clearFlashcards } =
+                flashcardsSlice.actions; export default flashcardsSlice.reducer;             </document_content>
+        </document>
+        <document index="17">
+            <source>app/slices/languageCardsSlice.ts</source>
+            <document_content> import { createSlice, PayloadAction } from '@reduxjs/toolkit';
+                interface LanguageCard { id?: string; word: string; translation: string; example:
+                string; explanation: string; } const initialState: LanguageCard[] = []; const
+                languageCardsSlice = createSlice({ name: 'languageCards', initialState, reducers: {
+                addLanguageCard: (state, action: PayloadAction<LanguageCard>) => {
+                state.push(action.payload); }, removeLanguageCard: (state, action: PayloadAction<number>)
+                => { state.splice(action.payload, 1); }, clearLanguageCards: (state) => { return [];
+                }, }, }); export const { addLanguageCard, removeLanguageCard, clearLanguageCards } =
+                languageCardsSlice.actions; export default languageCardsSlice.reducer;             </document_content>
+        </document>
+        <document index="18">
+            <source>app/slices/settingsSlice.ts</source>
+            <document_content> import { createSlice, PayloadAction } from '@reduxjs/toolkit'; import
+                { DEFAULT_PROMPTS, DEFAULT_MODEL } from '@/utils/config'; export interface
+                SettingsState { apiKey: string; selectedModel: string; customPrompts: { flashcard:
+                string; explain: string; language: string; }; } const initialState: SettingsState =
+                { apiKey: '', selectedModel: DEFAULT_MODEL, customPrompts: DEFAULT_PROMPTS, }; const
+                settingsSlice = createSlice({ name: 'settings', initialState, reducers: { setApiKey:
+                (state, action: PayloadAction<string>) => { state.apiKey = action.payload; },
+                setSelectedModel: (state, action: PayloadAction<string>) => { state.selectedModel =
+                action.payload; }, setCustomPrompts: (state, action: PayloadAction<SettingsState ['customPrompts' ]>)
+                => { state.customPrompts = action.payload; }, }, }); export const { setApiKey,
+                setSelectedModel, setCustomPrompts } = settingsSlice.actions; export default
+                settingsSlice.reducer;             </document_content>
+        </document>
+        <document index="19">
+            <source>app/store.ts</source>
+            <document_content> import { configureStore, ThunkAction, Action } from
+                '@reduxjs/toolkit'; import flashcardsReducer from './slices/flashcardsSlice'; import
+                languageCardsReducer from './slices/languageCardsSlice'; import settingsReducer from
+                './slices/settingsSlice'; import fileReducer from './slices/fileSlice'; export const
+                store = configureStore({ reducer: { flashcards: flashcardsReducer, languageCards:
+                languageCardsReducer, settings: settingsReducer, file: fileReducer, }, }); export
+                type RootState = ReturnType<typeof store.getState>; export type AppDispatch = typeof
+                store.dispatch; export type AppThunk<ReturnType = void> = ThunkAction<
+    ReturnType ,
+                    RootState,
+                    unknown,
+                    Action<string> >;             </document_content>
+        </document>
+        <document index="20">
+            <source>components/Cards/Card.tsx</source>
+            <document_content> import React from 'react'; import { Card, CardContent } from
+                "@/components/ui/card"; import { Button } from "@/components/ui/button"; import { X
+                } from "lucide-react"; interface CardProps { title?: string; subtitle?: string;
+                content: React.ReactNode; onRemove: () => void; isFlipped?: boolean; onFlip?: () =>
+                void; } const GenericCard: React.FC<CardProps> = ({ title, subtitle, content,
+                onRemove, isFlipped, onFlip, }) => { const handleClick = (e: React.MouseEvent) => {
+                if (!(e.target as HTMLElement).closest('button') && onFlip) { onFlip(); } }; return
+                ( <Card
+                    className= {`bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-lg shadow-sm hover:shadow-md transition-shadow duration-200 ${onFlip ? 'cursor-pointer' : ''} ${isFlipped ? 'bg-blue-50 dark:bg-blue-900' : ''}`}
+            onClick={handleClick}
+        >
+                    <CardContent className="p-3 relative">
+                        <Button
+                            variant="ghost"
+                            size="icon"
+                            className="absolute top-0.5 right-0.5 text-neutral-500 hover:text-red-500 dark:text-neutral-400 dark:hover:text-red-400 z-10"
+                            onClick= {(e)=> { e.stopPropagation(); onRemove(); }} > <X
+                                className="h-3 w-3" />
+                        </Button>
+                        <div className="text-sm space-y-1"> {title && ( <div
+                                className="flex items-baseline flex-wrap">
+                                <h3
+                                    className="text-lg font-bold text-neutral-900 dark:text-neutral-100 mr-2">
+                {title}
+                                </h3>
+                {subtitle && ( <p className="text-blue-600 dark:text-blue-400 text-sm">
+                                    {subtitle}
+                                </p>
+                )} </div> )} <div>{content}</div>
+                        </div>
+                    </CardContent>
+                </Card>
+                ); }; export default GenericCard;             </document_content>
+        </document>
+        <document index="21">
+            <source>components/Cards/CardCollection.tsx</source>
+            <document_content> import React from 'react'; import GenericCard from './Card';
+                interface CardCollectionProps<T> { cards: T[]; renderCard: (card: T, index: number)
+                => React.ReactNode; onAddCard: () => void; onClearCollection: () => void; } export
+                function CardCollection<T>({ cards, renderCard, onAddCard, onClearCollection }:
+                CardCollectionProps<T>) { return ( <div className="flex flex-col h-full">
+                    <div className="flex-grow overflow-y-auto pr-2">
+                        <div className="space-y-1">
+                            {cards.map((card, index) => renderCard(card, index))}
+                        </div>
+                    </div>
+                {cards.length > 0 && ( <div
+                        className="flex justify-between mt-3 pt-2 border-t border-gray-200 dark:border-gray-700">
+                        <button onClick= {onAddCard}
+                            className="flex items-center bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 transition">
+                Add Card
+                        </button>
+                        <button onClick= {onClearCollection}
+                            className="flex items-center bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600 transition">
+                Clear
+                        </button>
+                    </div>
+                )} </div> ); }             </document_content>
+        </document>
+        <document index="22">
+            <source>components/Cards/Flashcard.tsx</source>
+            <document_content> import React, { useState } from 'react'; import GenericCard from
+                './Card'; import { createMarkup } from '@/utils/createMarkup'; interface
+                FlashcardProps { question: string; answer: string; onRemove: () => void; } export
+                function Flashcard({ question, answer, onRemove }: FlashcardProps) { const
+                [isFlipped, setIsFlipped] = useState(false); return ( <GenericCard
+                    onRemove= {onRemove}
+                    isFlipped= {isFlipped}
+                    onFlip= {()=> setIsFlipped(!isFlipped)} content={ <>
+                    <p
+                        className= {`${isFlipped ? 'hidden' : 'block'} text-neutral-900 dark:text-neutral-100 break-words`}
+                        dangerouslySetInnerHTML={createMarkup(question)}
+                    />
+                    <p
+                        className= {`${isFlipped ? 'block' : 'hidden'} text-blue-800 dark:text-blue-200 break-words font-medium`}
+                        dangerouslySetInnerHTML={createMarkup(answer)}
+                    />
+                </> } /> ); }             </document_content>
+        </document>
+        <document index="23">
+            <source>components/Cards/LanguageCard.tsx</source>
+            <document_content> import React from 'react'; import GenericCard from './Card'; import {
+                createMarkup } from '@/utils/createMarkup'; interface LanguageCardProps { word:
+                string; translation: string; example: string; explanation: string; onRemove: () =>
+                void; } export function LanguageCard({ word, translation, example, explanation,
+                onRemove, }: LanguageCardProps) { return ( <GenericCard
+                    title= {word}
+                    subtitle= {`(${translation})`}
+                    content= {
+                <>
+                    <p
+                        className="text-neutral-700 dark:text-neutral-300 text-xs break-words italic"
+                        dangerouslySetInnerHTML= {createMarkup(example)}
+                    />
+                    <p
+                        className="text-green-800 dark:text-green-200 text-xs break-words"
+                        dangerouslySetInnerHTML= {createMarkup(explanation)}
+                    />
+                </> } onRemove={onRemove} /> ); }             </document_content>
+        </document>
+        <document index="24">
+            <source>components/Cards/index.tsx</source>
+            <document_content>
+                export { Flashcard } from './Flashcard';
+                export { LanguageCard } from './LanguageCard';
+                export { CardCollection } from './CardCollection';
+</document_content>
+        </document>
+        <document index="25">
+            <source>components/MainInterface/FileViewer.tsx</source>
+            <document_content> import React, { useState, useEffect, useCallback, useRef } from
+                'react'; import { Upload } from 'lucide-react'; import { Input } from
+                '@/components/ui/input'; import { useToast } from '@/components/ui/use-toast';
+                import { Viewer, Worker, SpecialZoomLevel } from '@react-pdf-viewer/core'; import {
+                defaultLayoutPlugin } from '@react-pdf-viewer/default-layout'; import { ReactReader
+                } from "react-reader"; import '@react-pdf-viewer/core/lib/styles/index.css'; import
+                '@react-pdf-viewer/default-layout/lib/styles/index.css'; interface FileViewerProps {
+                currentFile: File | null; onFileUpload: (event: React.ChangeEvent<HTMLInputElement>)
+                => void; onTextSelect: (selectedText: string) => void; onWordDoubleClick: (word:
+                string) => void; recentFiles: Array<{ name: string; progress: number }>; onRecentFileClick: (fileName: string) => void;
+                } // PDF Viewer Component interface PDFViewerProps { file: string | null;
+                onLoadSuccess: (numPages: number) => void; } const PDFViewer: React.FC<PDFViewerProps>
+                = ({ file, onLoadSuccess }) => { const defaultLayoutPluginInstance =
+                defaultLayoutPlugin({ sidebarTabs: (defaultTabs) => [defaultTabs[0]], }); if (!file)
+                { return <div className="flex items-center justify-center h-full">No PDF file
+                selected</div>; } return ( <div className="h-full w-full">
+                    <Worker workerUrl= {`https:// unpkg.com/ pdfjs-dist@3.11.174/ build/ pdf.worker.min.js`}>
+                        <Viewer
+                            fileUrl= {file}
+                            plugins= {[defaultLayoutPluginInstance]}
+                            onDocumentLoad= {(e)=> onLoadSuccess(e.doc.numPages)}
+                defaultScale={SpecialZoomLevel.PageFit}
+                        />
+                    </Worker>
+                </div>
+                ); }; // EPUB Viewer Component interface EpubViewerProps { url: string; location:
+                string | number; setLocation: (location: string) => void; } const EpubViewer:
+                React.FC<EpubViewerProps> = ({ url, location, setLocation }) => { return ( <div
+                    style= {{ height: "100%" , position: "relative" }}>
+                    <ReactReader
+                        url= {url}
+                        location= {location}
+                        locationChanged= {(epubcfi: string)=> setLocation(epubcfi)}
+                    epubOptions={{
+                    allowPopups: true,
+                    allowScriptedContent: true,
+                    }}
+                    epubInitOptions={{
+                    openAs: 'epub',
+                    }}
+                    />
+                </div> ); }; // export const
+                FileViewer: React.FC<FileViewerProps> = ({ currentFile, onFileUpload, onTextSelect,
+                onWordDoubleClick }) => { export const FileViewer: React.FC<FileViewerProps> = ({
+                currentFile, onFileUpload, onTextSelect, onWordDoubleClick, recentFiles,
+                onRecentFileClick }) => { const [fileContent, setFileContent] = useState<string>('');
+                const [loadingNewPdf, setLoadingNewPdf] = useState(false); const [numPages,
+                setNumPages] = useState<number | null>(null); const [pdfKey, setPdfKey] = useState(0);
+                const [epubLocation, setEpubLocation] = useState<string | number>(0); const prevFileUrl =
+                React.useRef<string | null>(null); const { toast } = useToast(); const fileContainerRef =
+                useRef<HTMLDivElement>(null); const handleTextSelection = useCallback((event:
+                MouseEvent) => { if (currentFile && (currentFile.type === 'application/pdf' ||
+                currentFile.type === 'application/epub+zip')) { const selection =
+                window.getSelection(); if (selection &&
+                fileContainerRef.current?.contains(selection.anchorNode)) { const selectedText =
+                selection.toString().trim(); if (selectedText) { if (event.detail === 2) { // Double
+                click onWordDoubleClick(selectedText); } else { onTextSelect(selectedText); } } } }
+                }, [currentFile, onTextSelect, onWordDoubleClick]); useEffect(() => { if
+                (currentFile && (currentFile.type === 'application/pdf' || currentFile.type ===
+                'application/epub+zip')) { document.addEventListener('mouseup',
+                handleTextSelection); return () => { document.removeEventListener('mouseup',
+                handleTextSelection); }; } }, [currentFile, handleTextSelection]); useEffect(() => {
+                if (currentFile) { setLoadingNewPdf(true); if (currentFile.type === 'text/plain') {
+                const reader = new FileReader(); reader.onload = (e) => { const content =
+                e.target?.result as string; setFileContent(content); setLoadingNewPdf(false); };
+                reader.readAsText(currentFile); } else if (currentFile.type === 'application/pdf') {
+                prevFileUrl.current = URL.createObjectURL(currentFile); setPdfKey((prevKey) =>
+                prevKey + 1); } else if (currentFile.type === 'application/epub+zip') {
+                prevFileUrl.current = URL.createObjectURL(currentFile); setEpubLocation(0);
+                setLoadingNewPdf(false); toast({ title: 'EPUB Notice', description: `EPUB needs to
+                be DRM-free. If content doesn't show, use tools like Calibre to convert EPUB to
+                EPUB.`, }); } else { setFileContent(''); setLoadingNewPdf(false); } } },
+                [currentFile, toast]); const renderFileContent = () => { if (!currentFile) { return
+                ( <div className="flex flex-col items-center justify-center h-full">
+                    <Input
+                        type="file"
+                        onChange= {onFileUpload}
+                        className="hidden"
+                        id="file-upload"
+                        accept=".pdf,.txt,.epub"
+                    />
+                    <label
+                        htmlFor="file-upload"
+                        className="flex flex-col items-center justify-center w-64 h-64 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer hover:border-gray-400 transition-colors duration-200"
+                    >
+                        <Upload className="w-12 h-12 text-gray-400" />
+                        <span className="mt-2 text-sm text-gray-500">Choose a file or drag it here</span>
+                    </label>
+                {recentFiles.length > 0 && ( <div className="mt-8">
+                        <h3 className="text-lg font-semibold mb-2">Recent Files</h3>
+                        <ul className="space-y-2"> {recentFiles.map((file, index) => ( <li key= {index}>
+                                <button
+                                    onClick= {()=> onRecentFileClick(file.name)}
+                className="text-blue-500 hover:underline"
+                                    >
+                                    {file.name}
+                                </button>
+                            </li>
+                ))} </ul>
+                    </div> )} </div> ); } switch (currentFile.type) { case
+                'text/plain': return ( <div className="bg-white p-4 rounded shadow-inner">
+                    <pre className="whitespace-pre-wrap">{fileContent}</pre>
+                </div> ); case
+                'application/pdf': return ( <div className="h-full w-full">
+                    <div ref= {fileContainerRef} className="h-full w-full">
+                        <PDFViewer
+                            file= {prevFileUrl.current}
+                            onLoadSuccess= {(numPages)=> {
+                        setNumPages(numPages);
+                        setLoadingNewPdf(false);
+                        }}
+                        />
+                    </div>
+                </div>
+                ); case 'application/epub+zip': return ( <div className="h-full w-full">
+                    <div ref= {fileContainerRef} className="h-full w-full">
+                        <EpubViewer
+                            url= {prevFileUrl.current!}
+                            location= {epubLocation}
+                            setLocation= {(location: string)=> setEpubLocation(location)}
+                        />
+                    </div>
+                </div>
+                ); default: return <p>Unsupported file type</p>; } }; return ( <div
+                    className="bg-gray-100 h-full flex flex-col items-center justify-center">
+                {renderFileContent()}
+                </div> ); }; export { PDFViewer,
+                EpubViewer };             </document_content>
+        </document>
+        <document index="26">
+            <source>components/MainInterface/MainInterface.tsx</source>
+            <document_content> 'use client' import React, { useState, useEffect, useCallback, useRef
+                } from "react" import { Settings } from "lucide-react" import { Button } from
+                "@/components/ui/button" import { Dialog, DialogContent, DialogHeader, DialogTitle }
+                from "@/components/ui/dialog" import { useToast } from "@/components/ui/use-toast"
+                import { CardCollection, Flashcard, LanguageCard } from "@/components/Cards" import
+                { FileViewer } from "./FileViewer" import { Sidebar } from "./Sidebar" import {
+                TopSidebar } from "./TopSidebar" import { SettingsDialog } from "./SettingsDialog"
+                import { useRouter } from 'next/navigation' import { useSelector, useDispatch } from
+                'react-redux' import { RootState } from '@/app/store' import { setCurrentFile,
+                addRecentFile } from '@/app/slices/fileSlice' import { setApiKey, setSelectedModel,
+                setCustomPrompts, SettingsState } from '@/app/slices/settingsSlice' import {
+                DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, } from
+                "@/components/ui/dropdown-menu" import SignOutButton from
+                "@/components/common/SignOutButton" import { handleGenerateContent } from
+                "@/utils/contentUtils" export function MainInterface() { const [mode, setMode] =
+                useState<"language" | "flashcard" | "explain">("language") const [languageSubMode, setLanguageSubMode] = useState<"english" | "french">("english")
+                const [settingsOpen, setSettingsOpen] = useState(false) const [explanation,
+                setExplanation] = useState("") const [selectedText, setSelectedText] = useState("")
+                const fileViewerRef = useRef<HTMLDivElement>(null) const dispatch = useDispatch()
+                const { currentFile, recentFiles } = useSelector((state: RootState) => state.file);
+                const { apiKey, selectedModel, customPrompts } = useSelector((state: RootState) =>
+                state.settings) const { toast } = useToast() const router = useRouter() useEffect(()
+                => { const storedApiKey = localStorage.getItem("apiKey") if (storedApiKey)
+                dispatch(setApiKey(storedApiKey)) const handleSelectionChange = () => { const
+                selection = window.getSelection() if (selection) { const newSelectedText =
+                selection.toString().trim() if (newSelectedText) { setSelectedText(newSelectedText)
+                } } } document.addEventListener('selectionchange', handleSelectionChange) return ()
+                => { document.removeEventListener('selectionchange', handleSelectionChange) } },
+                [dispatch]) const handleContentGeneration = useCallback(async (text: string) => {
+                return handleGenerateContent(text, mode, customPrompts, languageSubMode, apiKey,
+                selectedModel, dispatch, setExplanation) }, [mode, customPrompts, languageSubMode,
+                apiKey, selectedModel, dispatch, setExplanation]) const handleWordDoubleClick =
+                useCallback((word: string) => { if (mode === "language") {
+                handleContentGeneration(word); } }, [mode, handleContentGeneration]) const
+                handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => { const file =
+                event.target.files?.[0] if (file) { dispatch(setCurrentFile(file))
+                dispatch(addRecentFile({ name: file.name, progress: 0 })) } } const
+                handleRecentFileClick = useCallback((fileName: string) => { // Here you would
+                typically load the file content // For now, we'll just update the currentFile state
+                const file = new File([""], fileName, { type: "application/octet-stream" });
+                dispatch(setCurrentFile(file)); toast({ title: "Recent file selected", description:
+                `Loading ${fileName}...`, }); // You might want to add logic here to actually load
+                the file content }, [dispatch, toast]); const handleSettingsClick = () =>
+                setSettingsOpen(true); const handleDashboardClick = () => router.push('/dashboard');
+                return ( <div className="flex flex-col h-screen" tabIndex= {0}>
+                    <div className="flex flex-1 overflow-hidden">
+                        <div className="flex-grow overflow-auto mr-4" ref= {fileViewerRef}>
+                            <FileViewer
+                                currentFile= {currentFile}
+                                onFileUpload= {handleFileUpload}
+                                onTextSelect= {setSelectedText}
+                                onWordDoubleClick= {handleWordDoubleClick}
+                                recentFiles= {recentFiles}
+                                onRecentFileClick= {handleRecentFileClick}
+                            />
+                        </div>
+                        <Sidebar
+                            mode= {mode}
+                            setMode= {setMode}
+                            languageSubMode= {languageSubMode}
+                            setLanguageSubMode= {setLanguageSubMode}
+                            handleGenerateContent= {()=> handleContentGeneration(selectedText)}
+                handleFileUpload={handleFileUpload}
+                        explanation={explanation}
+                        setExplanation={setExplanation}
+                        />
+                        <TopSidebar />
+                    </div>
+
+                    <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                            <Button
+                                className="absolute bottom-4 right-4 bg-white text-black border border-gray-300"
+                                size="icon">
+                                <Settings className="h-4 w-4" />
+                            </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end"
+                            className="w-auto min-w-[8rem] bg-white border border-gray-300">
+                            <DropdownMenuItem className="w-full text-black hover:bg-gray-100">
+                                <SignOutButton />
+                            </DropdownMenuItem>
+                            <DropdownMenuItem className="w-full text-black hover:bg-gray-100"
+                                onClick= {handleDashboardClick}>
+                                Dashboard
+                            </DropdownMenuItem>
+                            <DropdownMenuItem className="w-full text-black hover:bg-gray-100"
+                                onClick= {handleSettingsClick}>
+                                Settings
+                            </DropdownMenuItem>
+                        </DropdownMenuContent>
+                    </DropdownMenu>
+
+                    <SettingsDialog
+                        open= {settingsOpen}
+                        onOpenChange= {setSettingsOpen}
+                        setApiKey= {(value: string)=> dispatch(setApiKey(value))}
+                selectedModel={selectedModel}
+                    setSelectedModel={(value: string) => dispatch(setSelectedModel(value))}
+                customPrompts={customPrompts}
+                    setCustomPrompts={(value: SettingsState['customPrompts']) =>
+                dispatch(setCustomPrompts(value))}
+                    />
+
+                    {explanation && (
+                    <Dialog open= {!!explanation} onOpenChange= {()=> setExplanation("")}> <DialogContent
+                            className="sm:max-w-[425px]">
+                            <DialogHeader>
+                                <DialogTitle>Explanation</DialogTitle>
+                            </DialogHeader>
+                            <div className="mt-4" dangerouslySetInnerHTML= {{ __html: explanation }} />
+                        </DialogContent>
+                    </Dialog>
+                )}
+                </div> ); }             </document_content>
+        </document>
+        <document index="27">
+            <source>components/MainInterface/SettingsDialog.tsx</source>
+            <document_content> import React from "react" import { Dialog, DialogContent,
+                DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog" import
+                { Input } from "@/components/ui/input" import { Textarea } from
+                "@/components/ui/textarea" import { useSelector, useDispatch } from 'react-redux'
+                import { RootState } from '@/app/store' import { setApiKey, setSelectedModel,
+                setCustomPrompts } from '@/app/slices/settingsSlice' interface SettingsDialogProps {
+                open: boolean onOpenChange: (open: boolean) => void } export function
+                SettingsDialog({ open, onOpenChange, }: SettingsDialogProps) { const dispatch =
+                useDispatch() const { apiKey, selectedModel, customPrompts } = useSelector((state:
+                RootState) => state.settings) return ( <Dialog open= {open} onOpenChange= {onOpenChange}>
+                    <DialogContent
+                        className="sm:max-w-[800px] w-[95vw] max-h-[95vh] h-[800px] flex flex-col">
+                        <DialogHeader className="pb-4">
+                            <DialogTitle>Settings</DialogTitle>
+                            <DialogDescription>
+                                Configure your API key and customize prompts.
+                            </DialogDescription>
+                        </DialogHeader>
+                        <div className="flex-grow overflow-y-auto pr-6">
+                            <div className="grid gap-8 py-4">
+                                <div className="grid grid-cols-4 items-center gap-4">
+                                    <label htmlFor="api-key" className="text-right">
+                                        API Key
+                                    </label>
+                                    <Input
+                                        id="api-key"
+                                        value= {apiKey}
+                                        onChange= {(e)=> {
+                                    dispatch(setApiKey(e.target.value))
+                localStorage.setItem("apiKey", e.target.value)
+                                    }}
+                                    className="col-span-3"
+                                    />
+                                </div>
+                                <div className="grid grid-cols-4 items-center gap-4">
+                                    <label htmlFor="model" className="text-right">
+                                        Model
+                                    </label>
+                                    <select
+                                        id="model"
+                                        value= {selectedModel}
+                                        onChange= {(e)=>
+                dispatch(setSelectedModel(e.target.value))} className="col-span-3 p-2 border
+                border-neutral-200 rounded dark:border-neutral-800" > <option
+                                            value="claude-3-5-sonnet-20240620">Claude 3.5 Sonnet</option>
+                                <option
+                                            value="claude-3-haiku">Claude 3 Haiku</option>
+                                    </select>
+                                </div>
+                                <div className="grid grid-cols-4 items-start gap-4">
+                                    <label htmlFor="flashcard-prompt" className="text-right pt-2">
+                Flashcard Prompt
+                                    </label>
+                                    <Textarea
+                                        id="flashcard-prompt"
+                                        value= {customPrompts.flashcard}
+                                        onChange= {(e)=> dispatch(setCustomPrompts({
+                ...customPrompts, flashcard: e.target.value }))}
+                                    className="col-span-3 min-h-[150px]"
+                                    />
+                                </div>
+                                <div className="grid grid-cols-4 items-start gap-4">
+                                    <label htmlFor="explain-prompt" className="text-right pt-2">
+                Explain Prompt
+                                    </label>
+                                    <Textarea
+                                        id="explain-prompt"
+                                        value= {customPrompts.explain}
+                                        onChange= {(e)=> dispatch(setCustomPrompts({
+                ...customPrompts, explain: e.target.value }))}
+                                    className="col-span-3 min-h-[150px]"
+                                    />
+                                </div>
+                                <div className="grid grid-cols-4 items-start gap-4">
+                                    <label htmlFor="language-prompt" className="text-right pt-2">
+                Language Prompt
+                                    </label>
+                                    <Textarea
+                                        id="language-prompt"
+                                        value= {customPrompts.language}
+                                        onChange= {(e)=> dispatch(setCustomPrompts({
+                ...customPrompts, language: e.target.value }))}
+                                    className="col-span-3 min-h-[150px]"
+                                    />
+                                </div>
+                            </div>
+                        </div>
+                    </DialogContent>
+                </Dialog>
+                ) } </document_content>
+        </document>
+        <document index="28">
+            <source>components/MainInterface/Sidebar.tsx</source>
+            <document_content> import React, { useRef } from "react" import { Button } from
+                "@/components/ui/button" import { Input } from "@/components/ui/input" import {
+                CardCollection } from "@/components/Cards/CardCollection"; import { Flashcard } from
+                "@/components/Cards/Flashcard"; import { LanguageCard } from
+                "@/components/Cards/LanguageCard"; import { useSelector, useDispatch } from
+                'react-redux' import { RootState } from '@/app/store' import { removeFlashcard,
+                clearFlashcards } from '@/app/slices/flashcardsSlice' import { removeLanguageCard,
+                clearLanguageCards } from '@/app/slices/languageCardsSlice' import { useToast } from
+                '@/components/ui/use-toast'; interface SidebarProps { mode: "language" | "flashcard"
+                | "explain" setMode: React.Dispatch<React.SetStateAction<"language" | "flashcard" | "explain">> languageSubMode:
+                "english" | "french" setLanguageSubMode: React.Dispatch<React.SetStateAction<"english" | "french">>
+                handleGenerateContent: () => Promise<any> handleFileUpload: (event:
+                React.ChangeEvent<HTMLInputElement>) => void explanation: string setExplanation:
+                React.Dispatch<React.SetStateAction<string>> } export function Sidebar({ mode,
+                setMode, languageSubMode, setLanguageSubMode, handleGenerateContent,
+                handleFileUpload, explanation, setExplanation }: SidebarProps) { const
+                [sidebarWidth, setSidebarWidth] = React.useState(30) const sidebarRef = useRef<HTMLDivElement>(null)
+                const resizeHandleRef = useRef<HTMLDivElement>(null) const dispatch = useDispatch()
+                const flashcards = useSelector((state: RootState) => state.flashcards) const
+                languageCards = useSelector((state: RootState) => state.languageCards) const { toast
+                } = useToast(); const handleSaveCards = async () => { try { const cardsToSave = mode
+                === 'flashcard' ? flashcards : languageCards; if (cardsToSave.length === 0) {
+                toast({ title: "No cards to save", description: "Please generate some cards first.",
+                }); return; } const response = await fetch('/api/cards', { method: 'POST', headers:
+                { 'Content-Type': 'application/json', }, body: JSON.stringify({ type: mode, cards:
+                cardsToSave, }), }); if (response.ok) { const { count } = await response.json();
+                toast({ title: "Cards saved", description: `${count} card(s) have been saved to the
+                database.`, }); // Clear the cards from the Redux store if (mode === 'flashcard') {
+                dispatch(clearFlashcards()); } else if (mode === 'language') {
+                dispatch(clearLanguageCards()); } } else { throw new Error(`Failed to save cards
+                (${cardsToSave.length})`); } } catch (error) { console.error('Error saving cards:',
+                error); toast({ title: "Error", description: "Failed to save the cards. Please try
+                again.", variant: "destructive", }); } }; const handleMouseDown = (e:
+                React.MouseEvent) => { e.preventDefault() document.addEventListener("mousemove",
+                handleMouseMove) document.addEventListener("mouseup", handleMouseUp) } const
+                handleMouseMove = (e: MouseEvent) => { if (sidebarRef.current &&
+                resizeHandleRef.current) { const containerRect =
+                sidebarRef.current.parentElement?.getBoundingClientRect() if (containerRect) { const
+                newWidth = containerRect.right - e.clientX const newWidthPercentage = (newWidth /
+                containerRect.width) * 100 setSidebarWidth(Math.min(Math.max(newWidthPercentage,
+                20), 80)) } } } const handleMouseUp = () => {
+                document.removeEventListener("mousemove", handleMouseMove)
+                document.removeEventListener("mouseup", handleMouseUp) } return ( <div
+                    ref= {sidebarRef}
+                    className="flex flex-col bg-gray-50 overflow-hidden relative"
+                    style= {{ width: `${sidebarWidth}%`, minWidth: "200px" , maxWidth: "80%" }}
+                >
+                    <div className="flex-grow overflow-y-auto overflow-x-hidden p-4">
+                        <div className="space-y-4">
+                            <div className="grid grid-cols-3 gap-2">
+                                <Button
+                                    variant= {mode=== "language" ? "default" : "outline"}
+                            onClick={() => setMode("language")}
+                        >
+                            Language
+                        </Button>
+                                <Button
+                                    variant= {mode=== "flashcard" ? "default" : "outline"}
+                            onClick={() => setMode("flashcard")}
+                        >
+                            Flashcard
+                        </Button>
+                                <Button
+                                    variant= {mode=== "explain" ? "default" : "outline"}
+                            onClick={() => setMode("explain")}
+                        >
+                            Explain
+                        </Button>
+                            </div>
+                {mode === "language" && ( <CardCollection
+                                cards= {languageCards}
+                                renderCard= {(card, index)=> ( <LanguageCard
+                                key= {index}
+                                word= {card.word}
+                                translation= {card.translation}
+                                example= {card.example}
+                                explanation= {card.explanation}
+                                onRemove= {()=> dispatch(removeLanguageCard(index))} /> )}
+                onAddCard={handleSaveCards} onClearCollection={() => dispatch(clearLanguageCards())}
+                /> )} {mode === "flashcard" && ( <CardCollection
+                                cards= {flashcards}
+                                renderCard= {(card, index)=> ( <Flashcard
+                                key= {index}
+                                question= {card.question}
+                                answer= {card.answer}
+                                onRemove= {()=> dispatch(removeFlashcard(index))} /> )}
+                onAddCard={handleSaveCards} onClearCollection={() => dispatch(clearFlashcards())} />
+                )}         </div> {mode ===
+                "explain" && explanation && ( <div className="mt-4" dangerouslySetInnerHTML= {{ __html: explanation }} /> )} </div>
+
+                    <div className="p-4 border-t">
+                        <Button onClick= {handleGenerateContent} className="w-full">
+                            {mode === "flashcard" ? "Generate Flashcard" : mode === "explain" ?
+                "Generate Explanation" : `Translate to ${languageSubMode === "english" ? "English" :
+                "French"}`}
+                        </Button>
+                    </div>
+
+                    <div
+                        ref= {resizeHandleRef}
+                        className="w-2 bg-gray-300 hover:bg-gray-400 cursor-ew-resize absolute top-0 left-0 bottom-0 transition-colors"
+                        onMouseDown= {handleMouseDown}
+                    />
+
+                    <Input
+                        type="file"
+                        onChange= {handleFileUpload}
+                        className="hidden"
+                        id="file-upload"
+                        accept=".pdf,.txt,.epub"
+                    />
+                </div> ) }             </document_content>
+        </document>
+        <document index="29">
+            <source>components/MainInterface/TopSidebar.tsx</source>
+            <document_content> 'use client' import React from "react"; import { useRouter } from
+                "next/navigation"; import { Button } from "@/components/ui/button"; import {
+                DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, } from
+                "@/components/ui/dropdown-menu"; import { LayoutDashboard, Dumbbell, User } from
+                "lucide-react"; export function TopSidebar() { const router = useRouter(); const
+                SidebarButton = ({ icon, label, onClick, dropdown }) => { const ButtonContent = ( <Button
+                    variant="default"
+                    className="w-12 h-12 p-2 flex justify-center items-center bg-black/70 hover:bg-gray-100 relative group"
+                    onClick= {dropdown ? undefined : onClick}
+            >
+                {React.cloneElement(icon, { className: "h-4 w-4 flex-shrink-0" })}
+                    <span
+                        className="absolute left-full ml-2 px-2 py-1 bg-gray-800 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap">
+                {label}
+                    </span>
+                </Button> );
+                return dropdown ? ( <DropdownMenuTrigger asChild>{ButtonContent}</DropdownMenuTrigger> ) : (
+                ButtonContent ); }; const handleDashboardClick = () => { router.push('/dashboard');
+                }; return ( <div
+                    className="fixed left-0 top-0 bottom-0 w-12 flex items-center justify-center z-50">
+                    <div className="bg-black/10 py-2 rounded-lg">
+                        <div className="space-y-2">
+                            <SidebarButton
+                                icon= {
+                            <LayoutDashboard />}
+                            label="Dashboard"
+                            onClick={handleDashboardClick}
+                            />
+                            <SidebarButton
+                                icon= {
+                            <Dumbbell />}
+                            label="Practice"
+                            onClick={() => console.log("Practice clicked")}
+                            />
+                            <DropdownMenu>
+                                <SidebarButton icon= {
+                                <User />} label="Profile" dropdown={true} />
+                                <DropdownMenuContent align="end">
+                                    <DropdownMenuItem onSelect= {()=> console.log("Profile
+                selected")}>Profile</DropdownMenuItem>
+                                    <DropdownMenuItem onSelect= {()=> console.log("Settings
+                selected")}>Settings</DropdownMenuItem>
+                                    <DropdownMenuItem onSelect= {()=> console.log("Sign out
+                selected")}>Sign out</DropdownMenuItem>
+                                </DropdownMenuContent>
+                            </DropdownMenu>
+                        </div>
+                    </div>
+                </div>
+                ); } </document_content>
+        </document>
+    </documents>
+
+</code-files>
+
+<output_format>
+    <![CDATA[
+    <files_content>
+      <file>
+        <path>path/to/file</path>
+        <action>create | update | delete</action>
+        <description>Description of changes and purpose.</description>
+        <code>Updated parts of the code</code>
+      </file>
+    </files_content>
+    ]]>
+</output_format>

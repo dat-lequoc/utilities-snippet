@@ -1,0 +1,88 @@
+<files_content>
+    <file>
+        <path>./Card.tsx</path>
+        <action>update</action>
+        <description>Updated the `Card` component to accept `content` as a `React.ReactNode` instead
+            of a string. Adjusted the rendering logic and class names to match the old code's
+            display style, making the component more flexible for different card types.</description>
+        <code> ```tsx import React from 'react'; import { Card, CardContent } from
+            "@/components/ui/card"; import { Button } from "@/components/ui/button"; import { X }
+            from "lucide-react"; interface CardProps { title?: string; subtitle?: string; content:
+            React.ReactNode; onRemove: () => void; isFlipped?: boolean; onFlip?: () => void; } const
+            GenericCard: React.FC<CardProps> = ({ title, subtitle, content, onRemove, isFlipped,
+            onFlip, }) => { const handleClick = (e: React.MouseEvent) => { if (!(e.target as
+            HTMLElement).closest('button') && onFlip) { onFlip(); } }; return ( <Card
+                className= {`bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-lg shadow-sm hover:shadow-md transition-shadow duration-200 ${onFlip ? 'cursor-pointer' : ''} ${isFlipped ? 'bg-blue-50 dark:bg-blue-900' : ''}`}
+        onClick={handleClick}
+      >
+                <CardContent className="p-3 relative">
+                    <Button
+                        variant="ghost"
+                        size="icon"
+                        className="absolute top-0.5 right-0.5 text-neutral-500 hover:text-red-500 dark:text-neutral-400 dark:hover:text-red-400 z-10"
+                        onClick= {(e)=> { e.stopPropagation(); onRemove(); }} > <X
+                            className="h-3 w-3" />
+                    </Button>
+                    <div className="text-sm space-y-1"> {title && ( <div
+                            className="flex items-baseline flex-wrap">
+                            <h3
+                                className="text-lg font-bold text-neutral-900 dark:text-neutral-100 mr-2">
+            {title}
+                            </h3> {subtitle && ( <p
+                                className="text-blue-600 dark:text-blue-400 text-sm">
+                                {subtitle}
+                            </p> )} </div> )}
+            {isFlipped !== undefined ? ( isFlipped ? ( <div>{content}</div> ) : null ) : ( <div>
+            {content}</div> )} </div>
+                </CardContent>
+            </Card> ); }; export
+            default GenericCard; ```   </code>
+    </file>
+
+    <file>
+        <path>./Flashcard.tsx</path>
+        <action>update</action>
+        <description>Updated the `Flashcard` component to pass `content` as a `React.ReactNode` and
+            adjusted the rendering of the question and answer to match the old code's display style.</description>
+        <code> ```tsx import React, { useState } from 'react'; import GenericCard from './Card';
+            import { createMarkup } from '@/utils/createMarkup'; interface FlashcardProps {
+            question: string; answer: string; onRemove: () => void; } export function Flashcard({
+            question, answer, onRemove }: FlashcardProps) { const [isFlipped, setIsFlipped] =
+            useState(false); return ( <GenericCard
+                onRemove= {onRemove}
+                isFlipped= {isFlipped}
+                onFlip= {()=> setIsFlipped(!isFlipped)} content={ isFlipped ? ( <p
+                className="text-blue-800 dark:text-blue-200 break-words font-medium"
+                dangerouslySetInnerHTML= {createMarkup(answer)}
+            /> ) : ( <p
+                className="text-neutral-900 dark:text-neutral-100 break-words"
+                dangerouslySetInnerHTML= {createMarkup(question)}
+            /> ) } /> ); } ```   </code>
+    </file>
+
+    <file>
+        <path>./LanguageCard.tsx</path>
+        <action>update</action>
+        <description>Updated the `LanguageCard` component to pass `content` as a `React.ReactNode`
+            and adjusted the rendering of the word, translation, example, and explanation to match
+            the old code's display style.</description>
+        <code> ```tsx import React from 'react'; import GenericCard from './Card'; import {
+            createMarkup } from '@/utils/createMarkup'; interface LanguageCardProps { word: string;
+            translation: string; example: string; explanation: string; onRemove: () => void; }
+            export function LanguageCard({ word, translation, example, explanation, onRemove, }:
+            LanguageCardProps) { return ( <GenericCard
+                title= {word}
+                subtitle= {`(${translation})`}
+                content= {
+          <>
+                <p
+                    className="text-neutral-700 dark:text-neutral-300 text-xs break-words italic"
+                    dangerouslySetInnerHTML= {createMarkup(example)}
+                />
+                <p
+                    className="text-green-800 dark:text-green-200 text-xs break-words"
+                    dangerouslySetInnerHTML= {createMarkup(explanation)}
+                />
+            </> } onRemove={onRemove} /> ); } ```   </code>
+    </file>
+</files_content>

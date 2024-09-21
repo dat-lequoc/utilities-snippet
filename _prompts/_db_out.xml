@@ -1,0 +1,310 @@
+<files_content>
+  <file>
+    <path>prisma/schema.prisma</path>
+    <action>create</action>
+    <description>
+      This Prisma schema defines the database structure to support the enhanced flashcard
+      functionality and the integration of the dashboard, practice, manager, and leaderboard pages.
+      It includes models for User, Flashcard, Category, LearningStat, Badge, and PowerUp,
+      establishing necessary relationships and enumerations to ensure data integrity and alignment
+      with the application's requirements.
+    </description>
+    <code><![CDATA[
+    datasource db {
+      provider = "mongodb
+      url      = env("DATABASE_URL")
+    }
+
+    generator client {
+      provider = "prisma-client-js"
+    }
+
+    model User {
+      id            String         @id @default(cuid())
+      name          String?
+      email         String?        @unique
+      emailVerified DateTime?
+      image         String?
+      flashcards    Flashcard[]
+      categories    Category[]
+      learningStat  LearningStat?
+      badges        Badge[]
+      powerUps      PowerUp[]
+      createdAt     DateTime       @default(now())
+      updatedAt     DateTime       @updatedAt
+    }
+
+    enum FlashcardType {
+      FLASHCARD
+      LANGUAGE
+    }
+
+    enum FlashcardStatus {
+      NEW
+      LEARNING
+      MASTERED
+    }
+
+    model Flashcard {
+      id           Int             @id @default(autoincrement())
+      type         FlashcardType
+      question     String?
+      answer       String?
+      word         String?
+      translation  String?
+      example      String?
+      explanation  String?
+      notes        String?
+      lastReviewed DateTime?
+      status       FlashcardStatus @default(NEW)
+      category     Category?       @relation(fields: [categoryId], references: [id])
+      categoryId   Int?
+      user         User            @relation(fields: [userId], references: [id])
+      userId       String
+      createdAt    DateTime        @default(now())
+      updatedAt    DateTime        @updatedAt
+    }
+
+    model Category {
+      id          Int        @id @default(autoincrement())
+      name        String
+      user        User       @relation(fields: [userId], references: [id])
+      userId      String
+      flashcards  Flashcard[]
+      createdAt   DateTime   @default(now())
+      updatedAt   DateTime   @updatedAt
+    }
+
+    model LearningStat {
+      id               Int      @id @default(autoincrement())
+      user             User     @relation(fields: [userId], references: [id])
+      userId           String   @unique
+      totalCardsCreated Int      @default(0)
+      totalCardsLearned Int      @default(0)
+      xp               Int      @default(0)
+      streakDays       Int      @default(0)
+      level            Int      @default(1)
+      lastActive       DateTime @default(now())
+    }
+
+    model Badge {
+      id          Int      @id @default(autoincrement())
+      name        String
+      description String?
+      user        User     @relation(fields: [userId], references: [id])
+      userId      String
+      createdAt   DateTime @default(now())
+    }
+
+    model PowerUp {
+      id            Int       @id @default(autoincrement())
+      name          String
+      description   String?
+      expirationDate DateTime?
+      user          User      @relation(fields: [userId], references: [id])
+      userId        String
+      createdAt     DateTime  @default(now())
+    }
+    ]]></code>
+  </file>
+
+  <file>
+    <path>app/api/cards/route.ts</path>
+    <action>update</action>
+    <description>
+      Adjust the Flashcard creation logic to align with the new Prisma schema. Ensure all necessary
+      fields are correctly mapped, and optional fields are handled based on the flashcard type.
+    </description>
+    <code><![CDATA[
+    import { NextRequest, NextResponse } from 'next/server';
+    import { PrismaClient } from "@prisma/client";
+    import { getServerSession } from "next-auth/next";
+    import { authOptions } from "../auth/[...nextauth]/route";
+
+    const prisma = new PrismaClient();
+
+    export async function POST(req: Request) {
+      const session = await getServerSession(authOptions);
+      if (!session || !session.user) {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      }
+
+      const { type, cards } = await req.json();
+
+      try {
+        const savedCards = await prisma.flashcard.createMany({
+          data: cards.map((card: any) => ({
+            type: card.type.toUpperCase(), // Ensure enum value matches
+            question: card.question || null,
+            answer: card.answer || null,
+            word: card.word || null,
+            translation: card.translation || null,
+            example: card.example || null,
+            explanation: card.explanation || null,
+            notes: card.notes || null,
+            lastReviewed: card.lastReviewed ? new Date(card.lastReviewed) : null,
+            status: card.status.toUpperCase(), // Ensure enum value matches
+            category: card.category ? { connectOrCreate: { where: { name: card.category, userId: session.user.id }, create: { name: card.category, userId: session.user.id } } } : undefined,
+            user: { connect: { id: session.user.id } },
+          })),
+          skipDuplicates: true,
+        });
+
+        return NextResponse.json({ count: savedCards.count });
+      } catch (error) {
+        console.error('Error saving cards:', error);
+        return NextResponse.json({ error: `Failed to save cards (${cards.length})` }, { status: 500 });
+      }
+    }
+    ]]></code>
+  </file>
+
+  <file>
+    <path>app/slices/flashcardsSlice.ts</path>
+    <action>update</action>
+    <description>
+      Update the Flashcard type definitions to match the new Prisma models, ensuring compatibility
+      with both client-side state and server-side data.
+    </description>
+    <code><![CDATA[
+    import { createSlice, PayloadAction } from '@reduxjs/toolkit';
+
+    interface Flashcard {
+      id: number;
+      type: 'FLASHCARD' | 'LANGUAGE' ;
+      question?: string;
+      answer?: string;
+      word?: string;
+      translation?: string;
+      example?: string;
+      explanation?: string;
+      notes?: string;
+      lastReviewed?: string;
+      status: 'NEW' | 'LEARNING' | 'MASTERED';
+      categoryId?: number;
+      userId: string;
+      createdAt: string;
+      updatedAt: string;
+    }
+
+    const initialState: Flashcard[] = [];
+
+    const flashcardsSlice = createSlice({
+      name: 'flashcards',
+      initialState,
+      reducers: {
+        addFlashcard: (state, action: PayloadAction<Flashcard>) => {
+          state.push(action.payload);
+        },
+        removeFlashcard: (state, action: PayloadAction<number>) => {
+          return state.filter(card => card.id !== action.payload);
+        },
+        clearFlashcards: () => {
+          return [];
+        },
+      },
+    });
+
+    export const { addFlashcard, removeFlashcard, clearFlashcards } = flashcardsSlice.actions;
+    export default flashcardsSlice.reducer;
+    ]]></code>
+  </file>
+
+  <file>
+    <path>app/slices/languageCardsSlice.ts</path>
+    <action>update</action>
+    <description>
+      Align the LanguageCard type with the new Flashcard model, ensuring fields are consistent
+      across the application.
+    </description>
+    <code><![CDATA[
+    import { createSlice, PayloadAction } from '@reduxjs/toolkit';
+
+    interface LanguageCard {
+      id: number;
+      word: string;
+      translation: string;
+      example: string;
+      explanation: string;
+      categoryId?: number;
+      status: 'NEW' | 'LEARNING' | 'MASTERED';
+      notes?: string;
+      lastReviewed?: string;
+      userId: string;
+      createdAt: string;
+      updatedAt: string;
+    }
+
+    const initialState: LanguageCard[] = [];
+
+    const languageCardsSlice = createSlice({
+      name: 'languageCards',
+      initialState,
+      reducers: {
+        addLanguageCard: (state, action: PayloadAction<LanguageCard>) => {
+          state.push(action.payload);
+        },
+        removeLanguageCard: (state, action: PayloadAction<number>) => {
+          return state.filter(card => card.id !== action.payload);
+        },
+        clearLanguageCards: () => {
+          return [];
+        },
+      },
+    });
+
+    export const { addLanguageCard, removeLanguageCard, clearLanguageCards } = languageCardsSlice.actions;
+    export default languageCardsSlice.reducer;
+    ]]></code>
+  </file>
+
+  <file>
+    <path>app/slices/settingsSlice.ts</path>
+    <action>update</action>
+    <description>
+      Ensure that the Settings state aligns with the new Prisma schema, particularly regarding API
+      keys and model selections.
+    </description>
+    <code><![CDATA[
+    import { createSlice, PayloadAction } from '@reduxjs/toolkit';
+    import { DEFAULT_PROMPTS, DEFAULT_MODEL } from '@/utils/config';
+
+    export interface SettingsState {
+      apiKey: string;
+      selectedModel: string;
+      customPrompts: {
+        flashcard: string;
+        explain: string;
+        language: string;
+      };
+    }
+
+    const initialState: SettingsState = {
+      apiKey: '',
+      selectedModel: DEFAULT_MODEL,
+      customPrompts: DEFAULT_PROMPTS,
+    };
+
+    const settingsSlice = createSlice({
+      name: 'settings',
+      initialState,
+      reducers: {
+        setApiKey: (state, action: PayloadAction<string>) => {
+          state.apiKey = action.payload;
+        },
+        setSelectedModel: (state, action: PayloadAction<string>) => {
+          state.selectedModel = action.payload;
+        },
+        setCustomPrompts: (state, action: PayloadAction<SettingsState['customPrompts']>) => {
+          state.customPrompts = action.payload;
+        },
+      },
+    });
+
+    export const { setApiKey, setSelectedModel, setCustomPrompts } = settingsSlice.actions;
+    export default settingsSlice.reducer;
+    ]]></code>
+  </file>
+
+  </file>
+</files_content>

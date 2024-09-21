@@ -1,0 +1,275 @@
+<purpose>
+    new-code is the refactored version of old-code. Analyze and provide changes to the new-code to
+    keep the
+    old-code display style, while keeping the structure of new-code.
+</purpose>
+
+<instructions>
+    <instruction>
+        Modify files as needed: create, delete, or update, you changes will be applied in the
+        new-code.
+    </instruction>
+    <instruction>
+        Provide code for each new or updated file in a single block.
+    </instruction>
+    <instruction>
+        Give full code of the file to update in your response.
+    </instruction>
+    <instruction>
+        Respect the currently used libraries to avoid introducing unnecessary dependencies.
+    </instruction>
+    <instruction>
+        Maintain the existing file names unless a change is necessary for better clarity or
+        structure.
+    </instruction>
+    <instruction>
+        Ensure that after applying all changes, the code remains fully functional.
+    </instruction>
+</instructions>
+
+<old-code>
+    <documents>
+        <document index="1">
+            <source>./Flashcard.tsx</source>
+            <document_content> import React from 'react' import { Card, CardContent } from
+                "@/components/ui/card" import { Button } from "@/components/ui/button" import { X }
+                from "lucide-react" interface FlashcardProps { question: string answer: string
+                onRemove: () => void } function createMarkup(content: string) { return { __html:
+                content }; } export default function Flashcard({ question, answer, onRemove }:
+                FlashcardProps) { const [isFlipped, setIsFlipped] = React.useState(false) const
+                handleClick = (e: React.MouseEvent) => { if (!(e.target as
+                HTMLElement).closest('button')) { setIsFlipped(!isFlipped) } } return ( <Card
+                    className= {`bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-lg shadow-sm hover:shadow-md transition-shadow duration-200 cursor-pointer ${isFlipped ? 'bg-blue-50 dark:bg-blue-900' : ''}`}
+            onClick={handleClick}
+        >
+                    <CardContent className="p-3 relative">
+                        <Button
+                            variant="ghost"
+                            size="icon"
+                            className="absolute top-0.5 right-0.5 text-neutral-500 hover:text-red-500 dark:text-neutral-400 dark:hover:text-red-400 z-10"
+                            onClick= {(e)=> { e.stopPropagation() onRemove() }} > <X
+                                className="h-3 w-3" />
+                        </Button>
+                        <div className="text-sm"> {isFlipped ? ( <p
+                                className="text-blue-800 dark:text-blue-200 break-words font-medium"
+                                dangerouslySetInnerHTML= {createMarkup(answer)}
+                            /> ) : ( <p
+                                className="text-neutral-900 dark:text-neutral-100 break-words"
+                                dangerouslySetInnerHTML= {createMarkup(question)}
+                            /> )} </div>
+                    </CardContent>
+                </Card>
+                ) } </document_content>
+        </document>
+        <document index="2">
+            <source>./FlashcardCollection.tsx</source>
+            <document_content> import React from 'react' import { Button } from
+                "@/components/ui/button" import { Plus, Trash2 } from "lucide-react" import
+                Flashcard from './Flashcard' interface FlashcardCollectionProps { cards: Array<{ question: string; answer: string }>
+                onRemoveCard: (index: number) => void onAddCard: () => void onClearCollection: () =>
+                void } export function FlashcardCollection({ cards, onRemoveCard, onAddCard,
+                onClearCollection, }: FlashcardCollectionProps) { return ( <div
+                    className="flex flex-col h-full">
+                    <div className="flex-grow overflow-y-auto pr-2">
+                        <div className="space-y-1"> {cards.map((card, index) => ( <Flashcard
+                                key= {index}
+                                question= {card.question}
+                                answer= {card.answer}
+                                onRemove= {()=> onRemoveCard(index)} /> ))}
+                </div>
+                    </div>
+                {cards.length > 0 && ( <div
+                        className="flex justify-between mt-3 pt-2 border-t border-gray-200 dark:border-gray-700">
+                        <Button onClick= {onAddCard} size="sm" className="flex items-center">
+                            <Plus className="h-4 w-4 mr-1" /> Save Card(s) </Button>
+                        <Button onClick= {onClearCollection} size="sm" variant="destructive"
+                            className="flex items-center">
+                            <Trash2 className="h-4 w-4 mr-1" /> Clear </Button>
+                    </div>
+                )} </div> ) }
+</document_content>
+        </document>
+        <document index="3">
+            <source>./LanguageCard.tsx</source>
+            <document_content> import React from 'react' import { Card, CardContent } from
+                "@/components/ui/card" import { Button } from "@/components/ui/button" import { X }
+                from "lucide-react" interface LanguageCardProps { word: string translation: string
+                example: string explanation: string onRemove: () => void } function
+                createMarkup(content: string) { return { __html: content }; } export default
+                function LanguageCard({ word, translation, example, explanation, onRemove }:
+                LanguageCardProps) { return ( <Card
+                    className="bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-lg shadow-sm hover:shadow-md transition-shadow duration-200">
+                    <CardContent className="p-3 relative">
+                        <Button
+                            variant="ghost"
+                            size="icon"
+                            className="absolute top-0.5 right-0.5 text-neutral-500 hover:text-red-500 dark:text-neutral-400 dark:hover:text-red-400 z-10"
+                            onClick= {onRemove}
+                        >
+                            <X className="h-3 w-3" />
+                        </Button>
+                        <div className="text-sm space-y-1">
+                            <div className="flex items-baseline flex-wrap">
+                                <h3
+                                    className="text-lg font-bold text-neutral-900 dark:text-neutral-100 mr-2">
+                {word}</h3>
+                                <p className="text-blue-600 dark:text-blue-400 text-sm">
+                ({translation})</p>
+                            </div>
+                            <p
+                                className="text-neutral-700 dark:text-neutral-300 text-xs break-words italic"
+                                dangerouslySetInnerHTML= {createMarkup(example)}
+                            />
+                            <p
+                                className="text-green-800 dark:text-green-200 text-xs break-words"
+                                dangerouslySetInnerHTML= {createMarkup(explanation)}
+                            />
+                        </div>
+                    </CardContent>
+                </Card>
+                ) } </document_content>
+        </document>
+        <document index="4">
+            <source>./LanguageCardCollection.tsx</source>
+            <document_content> import React from 'react' import { Button } from
+                "@/components/ui/button" import { Plus, Trash2 } from "lucide-react" import
+                LanguageCard from './LanguageCard' interface LanguageCardCollectionProps { cards:
+                Array<{ word: string; translation: string; example: string; explanation: string }> onRemoveCard: (index: number) => void onAddCard: () => void
+                onClearCollection: () => void } export function LanguageCardCollection({ cards,
+                onRemoveCard, onAddCard, onClearCollection, }: LanguageCardCollectionProps) { return
+                ( <div className="flex flex-col h-full">
+                    <div className="flex-grow overflow-y-auto pr-2">
+                        <div className="space-y-1"> {cards.map((card, index) => ( <LanguageCard
+                                key= {index}
+                                word= {card.word}
+                                translation= {card.translation}
+                                example= {card.example}
+                                explanation= {card.explanation}
+                                onRemove= {()=> onRemoveCard(index)} /> ))}
+                </div>
+                    </div>
+                {cards.length > 0 && ( <div
+                        className="flex justify-between mt-3 pt-2 border-t border-gray-200 dark:border-gray-700">
+                        <Button onClick= {onAddCard} size="sm" className="flex items-center">
+                            <Plus className="h-4 w-4 mr-1" /> Save Card(s) </Button>
+                        <Button onClick= {onClearCollection} size="sm" variant="destructive"
+                            className="flex items-center">
+                            <Trash2 className="h-4 w-4 mr-1" /> Clear </Button>
+                    </div>
+                )} </div> ) }
+</document_content>
+        </document>
+    </documents>
+</old-code>
+
+<new-code>
+    <documents>
+        <document index="1">
+            <source>./Card.tsx</source>
+            <document_content> import React from 'react'; import { Card, CardContent } from
+                "@/components/ui/card"; import { Button } from "@/components/ui/button"; import { X
+                } from "lucide-react"; import { createMarkup } from '@/utils/createMarkup';
+                interface CardProps { title: string; subtitle?: string; content: string; onRemove:
+                () => void; isFlipped: boolean; onFlip: () => void; } const GenericCard: React.FC<CardProps>
+                = ({ title, subtitle, content, onRemove, isFlipped, onFlip }) => { const handleClick
+                = (e: React.MouseEvent) => { if (!(e.target as HTMLElement).closest('button')) {
+                onFlip(); } }; return ( <Card
+                    className= {`bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-lg shadow-sm hover:shadow-md transition-shadow duration-200 cursor-pointer ${isFlipped ? 'bg-blue-50 dark:bg-blue-900' : ''}`}
+            onClick={handleClick}
+        >
+                    <CardContent className="p-3 relative">
+                        <Button
+                            variant="ghost"
+                            size="icon"
+                            className="absolute top-0.5 right-0.5 text-neutral-500 hover:text-red-500 dark:text-neutral-400 dark:hover:text-red-400 z-10"
+                            onClick= {(e)=> { e.stopPropagation(); onRemove(); }} > <X
+                                className="h-3 w-3" />
+                        </Button>
+                        <div className="text-sm"> {isFlipped ? ( <p
+                                className="text-blue-800 dark:text-blue-200 break-words font-medium"
+                                dangerouslySetInnerHTML= {createMarkup(content)}
+                            /> ) : ( <p
+                                className="text-neutral-900 dark:text-neutral-100 break-words"
+                                dangerouslySetInnerHTML= {createMarkup(title)}
+                            /> )} {subtitle && <p
+                                className="text-sm text-blue-600 dark:text-blue-400 break-words font-medium"
+                                dangerouslySetInnerHTML= {createMarkup(subtitle)} />} </div>
+                    </CardContent>
+                </Card>
+                ); }; export default GenericCard;
+</document_content>
+        </document>
+        <document index="2">
+            <source>./CardCollection.tsx</source>
+            <document_content> import React from 'react'; import GenericCard from './Card';
+                interface CardCollectionProps<T> { cards: T[]; renderCard: (card: T, index: number)
+                => React.ReactNode; onAddCard: () => void; onClearCollection: () => void; } export
+                function CardCollection<T>({ cards, renderCard, onAddCard, onClearCollection }:
+                CardCollectionProps<T>) { return ( <div className="flex flex-col h-full">
+                    <div className="flex-grow overflow-y-auto pr-2">
+                        <div className="space-y-1">
+                            {cards.map((card, index) => renderCard(card, index))}
+                        </div>
+                    </div>
+                {cards.length > 0 && ( <div
+                        className="flex justify-between mt-3 pt-2 border-t border-gray-200 dark:border-gray-700">
+                        <button onClick= {onAddCard}
+                            className="flex items-center bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 transition">
+                Add Card
+                        </button>
+                        <button onClick= {onClearCollection}
+                            className="flex items-center bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600 transition">
+                Clear
+                        </button>
+                    </div>
+                )} </div> ); }
+</document_content>
+        </document>
+        <document index="3">
+            <source>./Flashcard.tsx</source>
+            <document_content> import React, { useState } from 'react'; import GenericCard from
+                './Card'; import { createMarkup } from '../../utils/createMarkup'; interface
+                FlashcardProps { question: string; answer: string; onRemove: () => void; } export
+                function Flashcard({ question, answer, onRemove }: FlashcardProps) { const
+                [isFlipped, setIsFlipped] = useState(false); return ( <GenericCard
+                    title= {question}
+                    content= {<div dangerouslySetInnerHTML= {createMarkup(answer)} />} onRemove={onRemove}
+                isFlipped={isFlipped} onFlip={() => setIsFlipped(!isFlipped)} /> ); }
+</document_content>
+        </document>
+        <document index="4">
+            <source>./LanguageCard.tsx</source>
+            <document_content> import React from 'react'; import GenericCard from './Card'; import {
+                createMarkup } from '../../utils/createMarkup'; interface LanguageCardProps { word:
+                string; translation: string; example: string; explanation: string; onRemove: () =>
+                void; } export function LanguageCard({ word, translation, example, explanation,
+                onRemove }: LanguageCardProps) { const displayContent = `${example} <br /> <strong>
+                Explanation:</strong> ${explanation}`; return ( <GenericCard
+                    title= {word}
+                    subtitle= {`(${translation})`}
+                    content= {<div dangerouslySetInnerHTML= {createMarkup(displayContent)} />} onRemove={onRemove} /> ); }
+</document_content>
+        </document>
+        <document index="5">
+            <source>./index.tsx</source>
+            <document_content>
+                export { Flashcard } from './Flashcard';
+                export { LanguageCard } from './LanguageCard';
+                export { CardCollection } from './CardCollection';
+</document_content>
+        </document>
+    </documents>
+</new-code>
+
+<output_format>
+<![CDATA[
+<files_content>
+  <file>
+    <path>path/to/file</path>
+    <action>create | update | delete</action>
+    <description>Description of changes and purpose.</description>
+    <code>Updated parts of the code</code>
+  </file>
+</files_content>
+]]>
+</output_format>

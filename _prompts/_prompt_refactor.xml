@@ -1,0 +1,46 @@
+<purpose>
+    Given a project, refactor entier code base to have a better working, optimized, well-structure
+    code
+    base in NextJS 14+. The
+    goal is to improve code structure, performance, maintainability and reduce code redundancy while
+    adhering to best practices.
+</purpose>
+
+<instructions>
+    <instruction>Scan the entire codebase which found in "code-files" and propose a new optimized,
+        well-structured file structure map, place it in side. You're free to create,
+        delete, modify files.
+    </instruction>
+    <instruction>Write full, working code for each of newFiles and updatedFiles. Double double
+        check to ensure you provide all the changes</instruction>
+    <instruction>
+        Implement a robust light/dark mode system using Tailwind's dark mode feature. Ensure all
+        components and custom styles support both light and dark modes seamlessly. Creating a shared
+        styles module to avoid duplicate styling in CSS Tailwind.
+    </instruction>
+    <instruction>Breaking down long components, functions for code modularity. Use best coding
+        practices, by creating reusable utility functions, components</instruction>
+    <instruction>Identify and implement optimizations for performance bottlenecks, including code
+        splitting, lazy loading, and caching strategies specific to Next.js 14+</instruction>
+</instructions>
+
+<code-files>
+</code-files>
+
+<output_format>
+<![CDATA[
+interface NewProjectStructure {
+    deletedFiles?: string[]; // list of files from the original structure that were removed
+    newFiles?: string[]; // list of newly created files
+    updatedFiles?: string[]; // list of newly created files
+    filesContent: fileContent[]; // content of ALL newFiles and updatedFiles
+}
+
+interface fileContent {
+    file: string; // path to the file
+    action: "update" | "create"; 
+    description: string; // description of the file, changes and its purpose
+    fullCode: string; // complete, implemented code for the file
+}
+]]>
+</output_format>

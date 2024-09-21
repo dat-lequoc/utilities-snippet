@@ -1,0 +1,39 @@
+<purpose>
+    Review the provided code diffs and code files to automatically correct any issues, enhancing
+    code quality and adhering to best practices.
+</purpose>
+
+<instructions>
+    <instruction> Analyze the code differences in the <code-diffs> section, referencing the code in
+        the <code-files> section as needed. </instruction>
+    <instruction>
+        Identify errors, bugs, or deviations from best practices.
+    </instruction>
+    <instruction>
+        Provide corrected code snippets for each issue found.
+    </instruction>
+    <instruction>
+        Only include the corrected parts of the code in your response.
+    </instruction>
+</instructions>
+
+<code-files>
+    <!-- Insert code files here -->
+</code-files>
+
+<code-diffs>
+    <!-- Insert code diffs here -->
+</code-diffs>
+
+<output_format>
+  <![CDATA[
+  <corrections>
+    <correction>
+      <path>path/to/file</path>
+      <description>Description of the issue and the correction made.</description>
+      <code>Corrected code snippet</code>
+    </correction>
+  </corrections>
+  ]]>
+  </output_format>
+  

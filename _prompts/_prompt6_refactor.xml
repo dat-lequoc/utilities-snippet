@@ -1,0 +1,46 @@
+<purpose>
+  Refactor the entire codebase to create a better working, optimized, and
+  well-structured project in NextJS 14+. The goal is to improve code structure, performance,
+  maintainability, and reduce
+  code redundancy while adhering to best practices.
+</purpose>
+
+<instructions>
+  <instruction>
+    You may create, delete, or modify files as necessary.
+  </instruction>
+  <instruction>
+    Analyze the codebase located in the code-files directory.
+    Propose a new, optimized file structure.
+  </instruction>
+  <instruction>
+    Break down long components and functions to
+    improve modularity. Create reusable utility functions and components following best coding
+    practices.
+  </instruction>
+  <instruction>
+    Identify and implement optimizations for performance bottlenecks.
+  </instruction>
+
+  <instruction>
+    Provide code for each new and updated file.
+    Ensure all changes are included and double-checked for accuracy.
+    Each file should be updated only once, containing all
+    necessary changes in a single block.
+  </instruction>
+
+  <instruction>
+    Identify and remove outdated or unused files, components, functions, and dependencies.
+    Provide a clear explanation for each removed item.
+  </instruction>
+</instructions>
+
+<code-files>
+</code-files>
+
+<output_format>
+    <![CDATA[ 
+    <files_content><file><path>path/to/file</path><action>create | update | delete</action><description>Description of the changes and its purpose.</description><code>Update parts of the file</code></file>
+    </files_content>
+    ]]>
+</output_format>

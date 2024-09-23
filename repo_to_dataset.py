@@ -55,15 +55,12 @@ def process_directory(path):
     all_extensions = set()
     total_files = 0
 
-    # First, count the total number of files (excluding ignored directories)
     for root, dirs, files in os.walk(path):
         dirs[:] = [d for d in dirs if not should_ignore(os.path.join(root, d), is_dir=True)]
         total_files += len([f for f in files if not should_ignore(os.path.join(root, f))])
 
-    # Now process the files with a progress bar
     with tqdm(total=total_files, desc="Processing files", unit="file") as pbar:
         for root, dirs, files in os.walk(path):
-            # Modify dirs in-place to ignore specified directories
             dirs[:] = [d for d in dirs if not should_ignore(os.path.join(root, d), is_dir=True)]
             
             for file in files:
@@ -74,7 +71,7 @@ def process_directory(path):
                     
                     line_count, token_count = count_lines_and_tokens(file_path)
                     
-                    if line_count >= 100:
+                    if token_count >= 1000:
                         content = read_file_content(file_path)
                         results.append((file_path, content))
 
@@ -88,7 +85,6 @@ def process_directory(path):
 
     df = pd.DataFrame(file_data)
     
-    # Calculate statistics
     total_lines = df['line_count'].sum()
     total_tokens = df['token_count'].sum()
     included_files = len(results)
@@ -97,43 +93,45 @@ def process_directory(path):
     file_with_max_lines = df.loc[df['line_count'].idxmax(), 'file_path']
     file_with_max_tokens = df.loc[df['token_count'].idxmax(), 'file_path']
 
-    # Calculate distributions
-    size_distribution = pd.cut(df['line_count'], 
-                               bins=[0, 100, 500, 1000, np.inf], 
-                               labels=['<100 lines', '100-499 lines', '500-999 lines', '1000+ lines'])
+    # Updated bins for token distribution
     token_distribution = pd.cut(df['token_count'], 
-                                bins=[0, 1000, 5000, 10000, np.inf], 
-                                labels=['<1000 tokens', '1000-4999 tokens', '5000-9999 tokens', '10000+ tokens'])
+                                bins=[0, 1000, 2000, 3000, 4000, 5000, 10000, np.inf], 
+                                labels=['<1000 tokens', '1000-1999 tokens', '2000-2999 tokens', 
+                                        '3000-3999 tokens', '4000-4999 tokens', '5000-9999 tokens', 
+                                        '10000+ tokens'])
 
-    size_dist_dict = size_distribution.value_counts().to_dict()
     token_dist_dict = token_distribution.value_counts().to_dict()
 
     return (results, total_files, total_lines, total_tokens, included_files, 
             max_lines, max_tokens, file_with_max_lines, file_with_max_tokens, 
-            size_dist_dict, token_dist_dict, all_extensions, df)
+            token_dist_dict, all_extensions, df)
 
 def read_file_content(file_path):
     with open(file_path, 'r', encoding='utf-8', errors='ignore') as file:
         return file.read()
 
 def save_to_parquet(results, output_file):
-    df = pd.DataFrame(results, columns=['File Name', 'Content'])
+    df = pd.DataFrame(results, columns=['File Name', 'Content', 'Line Count', 'Token Count'])
     table = pa.Table.from_pandas(df)
     pq.write_table(table, output_file)
 
 def sample_dataset(df, sample_sizes):
+    # Updated bins for sampling based on tokens
     bins = {
-        '<100 lines': (0, 100),
-        '100-499 lines': (100, 500),
-        '500-999 lines': (500, 1000),
-        '1000+ lines': (1000, np.inf)
+        '<1000 tokens': (0, 1000),
+        '1000-1999 tokens': (1000, 2000),
+        '2000-2999 tokens': (2000, 3000),
+        '3000-3999 tokens': (3000, 4000),
+        '4000-4999 tokens': (4000, 5000),
+        '5000-9999 tokens': (5000, 10000),
+        '10000+ tokens': (10000, np.inf)
     }
     
     sampled_dfs = []
     for bin_name, size in sample_sizes.items():
         if size > 0:
             lower, upper = bins[bin_name]
-            bin_df = df[(df['line_count'] >= lower) & (df['line_count'] < upper)]
+            bin_df = df[(df['token_count'] >= lower) & (df['token_count'] < upper)]
             if len(bin_df) > 0:
                 if len(bin_df) > size:
                     sampled_dfs.append(bin_df.sample(size))
@@ -155,43 +153,58 @@ def print_sample_statistics(sampled_df):
     print(f"Total lines in sample: {sampled_df['line_count'].sum()}")
     print(f"Total tokens in sample: {sampled_df['token_count'].sum()}")
     
+    highest_token_count = sampled_df['token_count'].max()
+    file_with_highest_tokens = sampled_df.loc[sampled_df['token_count'].idxmax(), 'file_path']
+    print(f"\nHighest token count in sample: {highest_token_count}")
+    print(f"File with highest token count: {file_with_highest_tokens}")
+    
     extensions = Counter(sampled_df['file_path'].apply(lambda x: os.path.splitext(x)[1].lower()))
     print("\nFile Extensions in Sample:")
     for ext, count in extensions.most_common():
         print(f"  {ext}: {count}")
     
-    size_distribution = pd.cut(sampled_df['line_count'], 
-                               bins=[0, 100, 500, 1000, np.inf], 
-                               labels=['<100 lines', '100-499 lines', '500-999 lines', '1000+ lines'])
-    print("\nSize Distribution in Sample:")
-    for category, count in size_distribution.value_counts().items():
+    # Updated bins for token distribution in sample statistics
+    token_distribution = pd.cut(sampled_df['token_count'], 
+                                bins=[0, 1000, 2000, 3000, 4000, 5000, 10000, np.inf], 
+                                labels=['<1000 tokens', '1000-1999 tokens', '2000-2999 tokens', 
+                                        '3000-3999 tokens', '4000-4999 tokens', '5000-9999 tokens', 
+                                        '10000+ tokens'])
+    print("\nToken Distribution in Sample:")
+    for category, count in token_distribution.value_counts().items():
         print(f"  {category}: {count}")
 
 def main():
     parser = argparse.ArgumentParser(description='Recursively read files, sample, and save to Parquet file.')
     parser.add_argument('path', help='Path to the directory to process')
     parser.add_argument('--output', default='output.parquet', help='Output file name (default: output.parquet)')
-    parser.add_argument('--sample-lt-100', type=int, default=50, help='Number of samples for files with <100 lines')
-    parser.add_argument('--sample-100-499', type=int, default=150, help='Number of samples for files with 100-499 lines')
-    parser.add_argument('--sample-500-999', type=int, default=0, help='Number of samples for files with 500-999 lines')
-    parser.add_argument('--sample-1000-plus', type=int, default=0, help='Number of samples for files with 1000+ lines')
+    parser.add_argument('--sample-lt-1000', type=int, default=25, help='Number of samples for files with <1000 tokens')
+    parser.add_argument('--sample-1000-1999', type=int, default=50, help='Number of samples for files with 1000-1999 tokens')
+    parser.add_argument('--sample-2000-2999', type=int, default=70, help='Number of samples for files with 2000-2999 tokens')
+    parser.add_argument('--sample-3000-3999', type=int, default=50, help='Number of samples for files with 3000-3999 tokens')
+    parser.add_argument('--sample-4000-4999', type=int, default=5, help='Number of samples for files with 4000-4999 tokens')
+    parser.add_argument('--sample-5000-9999', type=int, default=0, help='Number of samples for files with 5000-9999 tokens')
+    parser.add_argument('--sample-10000-plus', type=int, default=0, help='Number of samples for files with 10000+ tokens')
     args = parser.parse_args()
 
     start_time = time.time()
     (results, total_files, total_lines, total_tokens, included_files, 
      max_lines, max_tokens, file_with_max_lines, file_with_max_tokens, 
-     size_distribution, token_distribution, all_extensions, df) = process_directory(args.path)
+     token_distribution, all_extensions, df) = process_directory(args.path)
 
     sample_sizes = {
-        '<100 lines': args.sample_lt_100,
-        '100-499 lines': args.sample_100_499,
-        '500-999 lines': args.sample_500_999,
-        '1000+ lines': args.sample_1000_plus
+        '<1000 tokens': args.sample_lt_1000,
+        '1000-1999 tokens': args.sample_1000_1999,
+        '2000-2999 tokens': args.sample_2000_2999,
+        '3000-3999 tokens': args.sample_3000_3999,
+        '4000-4999 tokens': args.sample_4000_4999,
+        '5000-9999 tokens': args.sample_5000_9999,
+        '10000+ tokens': args.sample_10000_plus
     }
 
     sampled_df = sample_dataset(df, sample_sizes)
     if sampled_df is not None and not sampled_df.empty:
-        sampled_results = [(row['file_path'], read_file_content(row['file_path'])) for _, row in sampled_df.iterrows()]
+        sampled_results = [(row['file_path'], read_file_content(row['file_path']), row['line_count'], row['token_count']) 
+                           for _, row in sampled_df.iterrows()]
         save_to_parquet(sampled_results, args.output)
         end_time = time.time()
 
@@ -207,9 +220,6 @@ def main():
         print(f"File with the most lines: {file_with_max_lines}")
         print(f"Maximum number of tokens in a file: {max_tokens}")
         print(f"File with the most tokens: {file_with_max_tokens}")
-        print("\nFile Size Distribution:")
-        for category, count in size_distribution.items():
-            print(f"  {category}: {count}")
         print("\nToken Distribution:")
         for category, count in token_distribution.items():
             print(f"  {category}: {count}")

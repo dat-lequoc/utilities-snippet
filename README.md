@@ -16,7 +16,7 @@ random snippets
 12. [WSL fix bugs](#wsl-fix-bugs)
 13. [WSL newly installed](#wsl-newly-installed)
 14. [Vim Configuration](#vim-configuration)
-15. 
+16. 
 # Windows Shortcut
 ------------------
 **Screenshorts**:
@@ -282,6 +282,12 @@ cd ~/.vim/bundle/YouCompleteMe
 
 ```
 python3 install.py --all
+```
+# Convert Notebook .ipynb to .pdf
+```
+sudo apt-get install pandoc texlive-xetex texlive-fonts-recommended texlive-plain-generic
+pip install nbconvert
+jupyter nbconvert --to pdf tests.ipynb
 ```
 
 

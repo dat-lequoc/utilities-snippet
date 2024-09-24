@@ -8,6 +8,21 @@ import pyarrow.parquet as pq
 import tiktoken
 from tqdm import tqdm
 from collections import Counter
+import sys
+import io
+
+class Logger(object):
+    def __init__(self, filename="Default.log"):
+        self.terminal = sys.stdout
+        self.log = open(filename, "w")
+
+    def write(self, message):
+        self.terminal.write(message)
+        self.log.write(message)
+
+    def flush(self):
+        self.terminal.flush()
+        self.log.flush()
 
 def should_ignore(path, is_dir=False):
     ignore_list = [
@@ -177,6 +192,7 @@ def main():
     parser = argparse.ArgumentParser(description='Recursively read files, sample, and save to Parquet file.')
     parser.add_argument('path', help='Path to the directory to process')
     parser.add_argument('--output', default='output.parquet', help='Output file name (default: output.parquet)')
+    parser.add_argument('--log', default='repo.log', help='Log file name (default: repo.log)')
     parser.add_argument('--sample-lt-1000', type=int, default=25, help='Number of samples for files with <1000 tokens')
     parser.add_argument('--sample-1000-1999', type=int, default=50, help='Number of samples for files with 1000-1999 tokens')
     parser.add_argument('--sample-2000-2999', type=int, default=70, help='Number of samples for files with 2000-2999 tokens')
@@ -186,9 +202,12 @@ def main():
     parser.add_argument('--sample-10000-plus', type=int, default=0, help='Number of samples for files with 10000+ tokens')
     args = parser.parse_args()
 
+    # Set up logging
+    sys.stdout = Logger(args.log)
+
     start_time = time.time()
-    (results, total_files, total_lines, total_tokens, included_files, 
-     max_lines, max_tokens, file_with_max_lines, file_with_max_tokens, 
+    (results, total_files, total_lines, total_tokens, included_files,
+     max_lines, max_tokens, file_with_max_lines, file_with_max_tokens,
      token_distribution, all_extensions, df) = process_directory(args.path)
 
     sample_sizes = {
@@ -203,7 +222,7 @@ def main():
 
     sampled_df = sample_dataset(df, sample_sizes)
     if sampled_df is not None and not sampled_df.empty:
-        sampled_results = [(row['file_path'], read_file_content(row['file_path']), row['line_count'], row['token_count']) 
+        sampled_results = [(row['file_path'], read_file_content(row['file_path']), row['line_count'], row['token_count'])
                            for _, row in sampled_df.iterrows()]
         save_to_parquet(sampled_results, args.output)
         end_time = time.time()
@@ -231,6 +250,8 @@ def main():
     else:
         print("\nNo samples were selected. The output file was not created.")
         print("Please check your sampling parameters and the content of your dataset.")
+
+    print(f"\nLog saved to {args.log}")
 
 if __name__ == "__main__":
     main()

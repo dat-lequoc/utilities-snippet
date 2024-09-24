@@ -126,7 +126,7 @@ def read_file_content(file_path):
         return file.read()
 
 def save_to_parquet(results, output_file):
-    df = pd.DataFrame(results, columns=['File Name', 'Content', 'Line Count', 'Token Count'])
+    df = pd.DataFrame(results, columns=['File Name', 'original_code', 'Line Count', 'Token Count'])
     table = pa.Table.from_pandas(df)
     pq.write_table(table, output_file)
 

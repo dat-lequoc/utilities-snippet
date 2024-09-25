@@ -290,6 +290,23 @@ pip install nbconvert
 jupyter nbconvert --to pdf tests.ipynb
 ```
 
+# Runpod init script
+```
+apt-get update
+apt-get install -y vim
 
+git config --global user.email "quocdat-le-insacvl@gmail.com"
+
+git config --global credential.helper store
+
+git clone https://quocdat-le-insacvl:<token>@github.com/quocdat-le-insacvl/fast-apply-model.git
+
+pip install huggingface_hub 
+# wandb
+
+export HUGGINGFACE_TOKEN=...
+
+huggingface-cli login --token $HUGGINGFACE_TOKEN --add-to-git-credential
+```
 
 

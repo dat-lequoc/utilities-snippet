@@ -3,6 +3,7 @@ import argparse
 import time
 import pandas as pd
 import numpy as np
+import os
 import pyarrow as pa
 import pyarrow.parquet as pq
 import tiktoken
@@ -28,7 +29,7 @@ def should_ignore(path, is_dir=False):
     ignore_list = [
         '.git', '__pycache__', 'node_modules', 'venv', 'env',
         'build', 'dist', 'target', 'bin', 'obj',
-        '.idea', '.vscode', '.gradle'
+        '.idea', '.vscode', '.gradle', 'LICENSE'
     ]
     ignore_extensions = [
         '.pyc', '.pyo', '.pyd', '.so', '.dll', '.class',
@@ -66,11 +67,12 @@ def count_lines_and_tokens(file_path):
     
     return len(lines), len(tokens)
 
-def process_directory(path):
+def process_directory(path, debug=False):
     results = []
     file_data = []
     all_extensions = set()
     total_files = 0
+    no_extension_files = []
 
     for root, dirs, files in os.walk(path):
         dirs[:] = [d for d in dirs if not should_ignore(os.path.join(root, d), is_dir=True)]
@@ -85,6 +87,9 @@ def process_directory(path):
                 if not should_ignore(file_path):
                     file_extension = os.path.splitext(file)[1].lower()
                     all_extensions.add(file_extension)
+                    
+                    if file_extension == '':
+                        no_extension_files.append(file_path)
                     
                     line_count, token_count = count_lines_and_tokens(file_path)
                     
@@ -121,7 +126,7 @@ def process_directory(path):
 
     return (results, total_files, total_lines, total_tokens, included_files, 
             max_lines, max_tokens, file_with_max_lines, file_with_max_tokens, 
-            token_dist_dict, all_extensions, df)
+            token_dist_dict, all_extensions, df, no_extension_files)
 
 def read_file_content(file_path):
     with open(file_path, 'r', encoding='utf-8', errors='ignore') as file:
@@ -202,6 +207,7 @@ def main():
     parser.add_argument('--sample-4000-4999', type=int, default=50, help='Number of samples for files with 4000-4999 tokens')
     parser.add_argument('--sample-5000-9999', type=int, default=0, help='Number of samples for files with 5000-9999 tokens')
     parser.add_argument('--sample-10000-plus', type=int, default=0, help='Number of samples for files with 10000+ tokens')
+    parser.add_argument('--debug', action='store_true', help='Enable debug mode')
     args = parser.parse_args()
 
     # Set up logging
@@ -210,7 +216,7 @@ def main():
     start_time = time.time()
     (results, total_files, total_lines, total_tokens, included_files,
      max_lines, max_tokens, file_with_max_lines, file_with_max_tokens,
-     token_distribution, all_extensions, df) = process_directory(args.path)
+     token_distribution, all_extensions, df, no_extension_files) = process_directory(args.path, args.debug)
 
     sample_sizes = {
         '<1000 tokens': args.sample_lt_1000,
@@ -249,6 +255,11 @@ def main():
             print(f"  {ext}")
 
         print_sample_statistics(sampled_df)
+
+        if args.debug:
+            print("\nFiles with no extension:")
+            for file in no_extension_files:
+                print(f"  {file}")
     else:
         print("\nNo samples were selected. The output file was not created.")
         print("Please check your sampling parameters and the content of your dataset.")

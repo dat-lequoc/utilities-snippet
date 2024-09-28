@@ -43,7 +43,9 @@ def should_ignore(path, is_dir=False):
         '.min.js', '.min.css',
         '.cjs', '.example', '.hbs', 
         '.map', '.otf', '.snap', '.svelte', '.template',
-        '.tpl', '.txt', '.webp'
+        '.tpl', '.txt', '.webp',
+        '.mdx', '.snapshot', '.pem', '.pic', '.config', '.patch',
+        '.alt', '.approvers', '.avif', '.bak', '.default', '.dev', '.development', '.empty', '.eot', '.glb', '.i18n-images', '.icns', '.local', '.new', '.plist', '.po', '.production', '.sample', '.skip', '.stderr', '.test', '.webmanifest', '.xyz', '.drawio'
     ]
     
     name = os.path.basename(path)
@@ -193,11 +195,11 @@ def main():
     parser.add_argument('path', help='Path to the directory to process')
     parser.add_argument('--output', default='output.parquet', help='Output file name (default: output.parquet)')
     parser.add_argument('--log', default='repo.log', help='Log file name (default: repo.log)')
-    parser.add_argument('--sample-lt-1000', type=int, default=25, help='Number of samples for files with <1000 tokens')
-    parser.add_argument('--sample-1000-1999', type=int, default=50, help='Number of samples for files with 1000-1999 tokens')
-    parser.add_argument('--sample-2000-2999', type=int, default=70, help='Number of samples for files with 2000-2999 tokens')
-    parser.add_argument('--sample-3000-3999', type=int, default=50, help='Number of samples for files with 3000-3999 tokens')
-    parser.add_argument('--sample-4000-4999', type=int, default=5, help='Number of samples for files with 4000-4999 tokens')
+    parser.add_argument('--sample-lt-1000', type=int, default=100, help='Number of samples for files with <1000 tokens')
+    parser.add_argument('--sample-1000-1999', type=int, default=300, help='Number of samples for files with 1000-1999 tokens')
+    parser.add_argument('--sample-2000-2999', type=int, default=250, help='Number of samples for files with 2000-2999 tokens')
+    parser.add_argument('--sample-3000-3999', type=int, default=100, help='Number of samples for files with 3000-3999 tokens')
+    parser.add_argument('--sample-4000-4999', type=int, default=50, help='Number of samples for files with 4000-4999 tokens')
     parser.add_argument('--sample-5000-9999', type=int, default=0, help='Number of samples for files with 5000-9999 tokens')
     parser.add_argument('--sample-10000-plus', type=int, default=0, help='Number of samples for files with 10000+ tokens')
     args = parser.parse_args()

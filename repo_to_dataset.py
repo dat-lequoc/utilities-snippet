@@ -29,7 +29,8 @@ def should_ignore(path, is_dir=False):
     ignore_list = [
         '.git', '__pycache__', 'node_modules', 'venv', 'env',
         'build', 'dist', 'target', 'bin', 'obj',
-        '.idea', '.vscode', '.gradle', 'LICENSE'
+        '.idea', '.vscode', '.gradle', 'LICENSE', '.github', 'CODEOWNERS'
+        '.prettierignore',  '.dockerignore', 'prettierignore', '.gitignore', '.cursorignore',
     ]
     ignore_extensions = [
         '.pyc', '.pyo', '.pyd', '.so', '.dll', '.class',

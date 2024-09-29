@@ -118,8 +118,8 @@ def process_directory(path, debug=False):
 
     # Updated bins for token distribution
     token_distribution = pd.cut(df['token_count'], 
-                                bins=[0, 1000, 2000, 3000, 4000, 5000, 10000, np.inf], 
-                                labels=['<1000 tokens', '1000-1999 tokens', '2000-2999 tokens', 
+                                bins=[0, 200, 1000, 2000, 3000, 4000, 5000, 10000, np.inf], 
+                                labels=['<200 tokens', '200-999 tokens', '1000-1999 tokens', '2000-2999 tokens', 
                                         '3000-3999 tokens', '4000-4999 tokens', '5000-9999 tokens', 
                                         '10000+ tokens'])
 
@@ -141,7 +141,8 @@ def save_to_parquet(results, output_file):
 def sample_dataset(df, sample_sizes):
     # Updated bins for sampling based on tokens
     bins = {
-        '<1000 tokens': (0, 1000),
+        '<200 tokens': (0, 200),
+        '200-999 tokens': (200, 1000),
         '1000-1999 tokens': (1000, 2000),
         '2000-2999 tokens': (2000, 3000),
         '3000-3999 tokens': (3000, 4000),
@@ -188,8 +189,8 @@ def print_sample_statistics(sampled_df):
     
     # Updated bins for token distribution in sample statistics
     token_distribution = pd.cut(sampled_df['token_count'], 
-                                bins=[0, 1000, 2000, 3000, 4000, 5000, 10000, np.inf], 
-                                labels=['<1000 tokens', '1000-1999 tokens', '2000-2999 tokens', 
+                                bins=[0, 200, 1000, 2000, 3000, 4000, 5000, 10000, np.inf], 
+                                labels=['<200 tokens', '200-999 tokens', '1000-1999 tokens', '2000-2999 tokens', 
                                         '3000-3999 tokens', '4000-4999 tokens', '5000-9999 tokens', 
                                         '10000+ tokens'])
     print("\nToken Distribution in Sample:")
@@ -201,7 +202,8 @@ def main():
     parser.add_argument('path', help='Path to the directory to process')
     parser.add_argument('--output', default='output.parquet', help='Output file name (default: output.parquet)')
     parser.add_argument('--log', default='repo.log', help='Log file name (default: repo.log)')
-    parser.add_argument('--sample-lt-1000', type=int, default=100, help='Number of samples for files with <1000 tokens')
+    parser.add_argument('--sample-lt-200', type=int, default=50, help='Number of samples for files with <200 tokens')
+    parser.add_argument('--sample-200-999', type=int, default=50, help='Number of samples for files with 200-999 tokens')
     parser.add_argument('--sample-1000-1999', type=int, default=300, help='Number of samples for files with 1000-1999 tokens')
     parser.add_argument('--sample-2000-2999', type=int, default=250, help='Number of samples for files with 2000-2999 tokens')
     parser.add_argument('--sample-3000-3999', type=int, default=100, help='Number of samples for files with 3000-3999 tokens')
@@ -220,7 +222,8 @@ def main():
      token_distribution, all_extensions, df, no_extension_files) = process_directory(args.path, args.debug)
 
     sample_sizes = {
-        '<1000 tokens': args.sample_lt_1000,
+        '<200 tokens': args.sample_lt_200,
+        '200-999 tokens': args.sample_200_999,
         '1000-1999 tokens': args.sample_1000_1999,
         '2000-2999 tokens': args.sample_2000_2999,
         '3000-3999 tokens': args.sample_3000_3999,

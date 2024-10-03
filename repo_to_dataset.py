@@ -73,7 +73,7 @@ def count_lines_and_tokens(file_path):
         print(f"Warning: File not found: {file_path}")
         return 0, 0
 
-def process_directory(path, debug=False):
+def process_directory(path, skip_tokens=0, debug=False):
     results = []
     file_data = []
     all_extensions = set()
@@ -99,16 +99,17 @@ def process_directory(path, debug=False):
                     
                     line_count, token_count = count_lines_and_tokens(file_path)
                     
-                    if line_count > 0 or token_count > 0:
-                        if token_count >= 1000:
-                            content = read_file_content(file_path)
-                            results.append((file_path, content))
+                    if token_count >= skip_tokens:
+                        if line_count > 0 or token_count > 0:
+                            if token_count >= 1000:
+                                content = read_file_content(file_path)
+                                results.append((file_path, content))
 
-                        file_data.append({
-                            'file_path': file_path,
-                            'line_count': line_count,
-                            'token_count': token_count
-                        })
+                            file_data.append({
+                                'file_path': file_path,
+                                'line_count': line_count,
+                                'token_count': token_count
+                            })
 
                     pbar.update(1)
 
@@ -219,6 +220,7 @@ def main():
     parser.add_argument('--sample-5000-9999', type=int, default=0, help='Number of samples for files with 5000-9999 tokens')
     parser.add_argument('--sample-10000-plus', type=int, default=0, help='Number of samples for files with 10000+ tokens')
     parser.add_argument('--debug', action='store_true', help='Enable debug mode')
+    parser.add_argument('--skip', type=int, default=0, help='Skip files with less than N tokens')
     args = parser.parse_args()
 
     # Set up logging
@@ -227,7 +229,7 @@ def main():
     start_time = time.time()
     (results, total_files, total_lines, total_tokens, included_files,
      max_lines, max_tokens, file_with_max_lines, file_with_max_tokens,
-     token_distribution, all_extensions, df, no_extension_files) = process_directory(args.path, args.debug)
+     token_distribution, all_extensions, df, no_extension_files) = process_directory(args.path, args.skip, args.debug)
 
     sample_sizes = {
         '<100 tokens': args.sample_lt_100,

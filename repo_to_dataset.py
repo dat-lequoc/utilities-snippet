@@ -59,14 +59,18 @@ def should_ignore(path, is_dir=False):
         return name in ignore_list or file_extension in ignore_extensions
 
 def count_lines_and_tokens(file_path):
-    with open(file_path, 'r', encoding='utf-8', errors='ignore') as file:
-        content = file.read()
-        lines = content.split('\n')
+    try:
+        with open(file_path, 'r', encoding='utf-8', errors='ignore') as file:
+            content = file.read()
+            lines = content.split('\n')
         
-    enc = tiktoken.get_encoding("cl100k_base")
-    tokens = enc.encode(content)
-    
-    return len(lines), len(tokens)
+        enc = tiktoken.get_encoding("cl100k_base")
+        tokens = enc.encode(content)
+        
+        return len(lines), len(tokens)
+    except FileNotFoundError:
+        print(f"Warning: File not found: {file_path}")
+        return 0, 0
 
 def process_directory(path, debug=False):
     results = []
@@ -94,15 +98,16 @@ def process_directory(path, debug=False):
                     
                     line_count, token_count = count_lines_and_tokens(file_path)
                     
-                    if token_count >= 1000:
-                        content = read_file_content(file_path)
-                        results.append((file_path, content))
+                    if line_count > 0 or token_count > 0:
+                        if token_count >= 1000:
+                            content = read_file_content(file_path)
+                            results.append((file_path, content))
 
-                    file_data.append({
-                        'file_path': file_path,
-                        'line_count': line_count,
-                        'token_count': token_count
-                    })
+                        file_data.append({
+                            'file_path': file_path,
+                            'line_count': line_count,
+                            'token_count': token_count
+                        })
 
                     pbar.update(1)
 

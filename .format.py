@@ -11,9 +11,66 @@ def parse_arguments():
     parser.add_argument('-i', '--input', default='.run.xml', help='Input filename (default: .run.xml)')
     parser.add_argument('-o', '--output', default='.out.xml', help='Output filename (default: .out.xml)')
     parser.add_argument('-c', '--crawl', action='store_true', help='Enable URL crawling')
+    parser.add_argument('--init', action='store_true', help='Initialize or replace .run.xml with template')
     return parser.parse_args()
 
 args = parse_arguments()
+
+# Handle the init option
+if args.init:
+    template = """<purpose>
+
+</purpose>
+
+
+<instructions>
+  <instruction>
+    Provide code for each new or updated file in a single block. Only include the updated parts
+    of the code in your response.
+  </instruction>
+  <instruction>
+    Maintain the existing file names unless a change is necessary for better clarity or
+    structure. Respect the currently used libraries to avoid introducing unnecessary
+    dependencies.
+  </instruction>
+</instructions>
+
+
+
+<code-files>
+  files-to-prompt --cxml 
+
+</code-files>
+
+
+<!--
+<code-old-reference>
+    files-to-prompt --cxml 
+</code-old-reference>
+-->
+
+<!--
+<documentation>
+
+</documentation>
+-->
+
+
+<output_format>
+  <files_content>
+    <file>
+      <path>path/to/file</path>
+      <action>create | update | delete</action>
+      <description>Description of changes and purpose.</description>
+      <code>Updated parts of the code</code>
+    </file>
+  </files_content>
+</output_format> 
+"""
+    with open('.run.xml', 'w') as file:
+        file.write(template)
+    print("Created or replaced .run.xml with default template.")
+    exit(0)
 
 # Define input and output filenames
 if os.path.isabs(args.input):

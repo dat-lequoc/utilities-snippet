@@ -43,8 +43,12 @@ if args.init is not None:
                         yield relative_path
         else:
             for item in os.listdir(directory):
-                if not should_exclude(item) and os.path.isfile(os.path.join(directory, item)):
-                    yield item
+                full_path = os.path.join(directory, item)
+                if not should_exclude(item):
+                    if os.path.isfile(full_path):
+                        yield item
+                    elif os.path.isdir(full_path):
+                        yield f"{item}/"
 
     template = """<purpose>
 

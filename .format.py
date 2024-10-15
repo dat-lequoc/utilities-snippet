@@ -12,11 +12,12 @@ def parse_arguments():
     parser.add_argument('-o', '--output', default='.out.xml', help='Output filename (default: .out.xml)')
     parser.add_argument('-c', '--crawl', action='store_true', help='Enable URL crawling')
     parser.add_argument('--init', nargs='?', const='.', help='Initialize or replace .run.xml with template. Optionally specify a directory path.')
+    parser.add_argument('-r', '--recursive', action='store_true', help='Recursively list files when initializing')
     parser.add_argument('--exclude', nargs='+', default=[
         '.log', '.xml', '.gitignore', '.env', '.json', 'archives', 'data',
-        '*aider', '.git', '.ipynb','__pycache__', '*cache'
-
-        ], help='List of files or extensions to exclude (default: [".log", "data/"])')
+        '*aider', '*git*', '.ipynb', '__pycache__', '*cache',
+        '.jsonl', '.parquet', '.safetensors', '.csv'
+        ], help='List of files or extensions to exclude (default: [".log", "data/", ".json", ".jsonl", ".parquet", ".safetensors", ".csv"])')
     return parser.parse_args()
 
 args = parse_arguments()
@@ -26,27 +27,28 @@ if args.init is not None:
     def should_exclude(item):
         return any(
             (exclude.startswith('.') and item.endswith(exclude)) or
+            (exclude.startswith('*') and exclude.endswith('*') and exclude[1:-1] in item) or
             (exclude.startswith('*') and exclude[1:] in item) or
             (not exclude.startswith('*') and not exclude.startswith('.') and exclude == item)
             for exclude in args.exclude
         )
+
+    def get_files(directory, recursive=False):
+        if recursive:
+            for root, dirs, files in os.walk(directory):
+                for file in files:
+                    full_path = os.path.join(root, file)
+                    relative_path = os.path.relpath(full_path, directory)
+                    if not should_exclude(relative_path):
+                        yield relative_path
+        else:
+            for item in os.listdir(directory):
+                if not should_exclude(item) and os.path.isfile(os.path.join(directory, item)):
+                    yield item
+
     template = """<purpose>
 
 </purpose>
-
-
-<instructions>
-  <instruction>
-    Provide code for each new or updated file in a single block. Only include the updated parts
-    of the code in your response.
-  </instruction>
-  <instruction>
-    Maintain the existing file names unless a change is necessary for better clarity or
-    structure. Respect the currently used libraries to avoid introducing unnecessary
-    dependencies.
-  </instruction>
-</instructions>
-
 
 <code-files>
   files-to-prompt --cxml 
@@ -67,8 +69,20 @@ if args.init is not None:
 </documentation>
 -->
 
+<!--
+<instructions>
+  <instruction>
+    Provide code for each new or updated file in a single block. Only include the updated parts
+    of the code in your response.
+  </instruction>
+  <instruction>
+    Maintain the existing file names unless a change is necessary for better clarity or
+    structure. Respect the currently used libraries to avoid introducing unnecessary
+    dependencies.
+  </instruction>
+</instructions>
 
-<--<output_format>
+<output_format>
   <files_content>
     <file>
       <path>path/to/file</path>
@@ -77,17 +91,16 @@ if args.init is not None:
       <code>Updated parts of the code</code>
     </file>
   </files_content>
-</output_format> -->
+</output_format> 
+-->
 """
     # Get all files and folders in the specified directory
     directory = args.init
-    items = os.listdir(directory)
     
-    # Filter out excluded items
-    filtered_items = [item for item in items if not should_exclude(item)]
+    items = list(get_files(directory, recursive=args.recursive))
     
     # Create a string with each item on a new line, wrapped in XML comments
-    placeholder = "\n".join(f"  <!-- {item} -->" for item in filtered_items)
+    placeholder = "\n".join(f"  <!-- {item} -->" for item in items)
     
     # Replace the placeholder in the template
     template = template.format(placeholder=placeholder)

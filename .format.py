@@ -11,13 +11,25 @@ def parse_arguments():
     parser.add_argument('-i', '--input', default='.run.xml', help='Input filename (default: .run.xml)')
     parser.add_argument('-o', '--output', default='.out.xml', help='Output filename (default: .out.xml)')
     parser.add_argument('-c', '--crawl', action='store_true', help='Enable URL crawling')
-    parser.add_argument('--init', action='store_true', help='Initialize or replace .run.xml with template')
+    parser.add_argument('--init', nargs='?', const='.', help='Initialize or replace .run.xml with template. Optionally specify a directory path.')
+    parser.add_argument('--exclude', nargs='+', default=[
+        '.log', '.xml', '.gitignore', '.env', '.json', 'archives', 'data',
+        '*aider', '.git', '.ipynb','__pycache__', '*cache'
+
+        ], help='List of files or extensions to exclude (default: [".log", "data/"])')
     return parser.parse_args()
 
 args = parse_arguments()
 
 # Handle the init option
-if args.init:
+if args.init is not None:
+    def should_exclude(item):
+        return any(
+            (exclude.startswith('.') and item.endswith(exclude)) or
+            (exclude.startswith('*') and exclude[1:] in item) or
+            (not exclude.startswith('*') and not exclude.startswith('.') and exclude == item)
+            for exclude in args.exclude
+        )
     template = """<purpose>
 
 </purpose>
@@ -36,9 +48,9 @@ if args.init:
 </instructions>
 
 
-
 <code-files>
   files-to-prompt --cxml 
+{placeholder}
 
 </code-files>
 
@@ -56,7 +68,7 @@ if args.init:
 -->
 
 
-<output_format>
+<--<output_format>
   <files_content>
     <file>
       <path>path/to/file</path>
@@ -65,11 +77,24 @@ if args.init:
       <code>Updated parts of the code</code>
     </file>
   </files_content>
-</output_format> 
+</output_format> -->
 """
+    # Get all files and folders in the specified directory
+    directory = args.init
+    items = os.listdir(directory)
+    
+    # Filter out excluded items
+    filtered_items = [item for item in items if not should_exclude(item)]
+    
+    # Create a string with each item on a new line, wrapped in XML comments
+    placeholder = "\n".join(f"  <!-- {item} -->" for item in filtered_items)
+    
+    # Replace the placeholder in the template
+    template = template.format(placeholder=placeholder)
+    
     with open('.run.xml', 'w') as file:
         file.write(template)
-    print("Created or replaced .run.xml with default template.")
+    print("Created or replaced .run.xml with default template and directory contents.")
     exit(0)
 
 # Define input and output filenames

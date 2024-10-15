@@ -202,11 +202,16 @@ from selenium.webdriver.common.action_chains import ActionChains
 import time
 
 def crawl_url(url):
+    driver = None
     try:
         # First, try with requests
-        response = requests.get(url)
+        response = requests.get(url, timeout=30)
         soup = BeautifulSoup(response.text, 'html.parser')
-        main_content = soup.find('body').get_text(strip=True)
+        main_content = soup.find('body')
+        if main_content:
+            main_content = main_content.get_text(strip=True)
+        else:
+            main_content = ""
         
         # Check if the content is asking for JavaScript or cookies
         if "Please turn JavaScript on" in main_content or "Please enable Cookies" in main_content:
@@ -215,13 +220,15 @@ def crawl_url(url):
             # Set up Selenium with Chrome in headless mode
             chrome_options = Options()
             chrome_options.add_argument("--headless")
+            chrome_options.add_argument("--no-sandbox")
+            chrome_options.add_argument("--disable-dev-shm-usage")
             driver = webdriver.Chrome(options=chrome_options)
             
             # Load the page
             driver.get(url)
             
             # Wait for the body to be present
-            WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.TAG_NAME, "body")))
+            body = WebDriverWait(driver, 30).until(EC.presence_of_element_located((By.TAG_NAME, "body")))
             
             # Check for captcha
             try:
@@ -241,20 +248,23 @@ def crawl_url(url):
                 action.perform()
                 
                 # Wait for page to load after captcha
-                WebDriverWait(driver, 10).until(
+                body = WebDriverWait(driver, 30).until(
                     EC.presence_of_element_located((By.TAG_NAME, "body"))
                 )
             except Exception as captcha_error:
                 print(f"No captcha found or error solving captcha: {captcha_error}")
             
             # Get the page source after JavaScript has run and potential captcha is solved
-            main_content = driver.find_element(By.TAG_NAME, "body").text
-            
-            driver.quit()
+            main_content = body.text
         
         return main_content
-    except Exception as e:
+    except requests.RequestException as e:
         return f"Error crawling {url}: {str(e)}"
+    except Exception as e:
+        return f"Unexpected error crawling {url}: {str(e)}"
+    finally:
+        if driver:
+            driver.quit()
 
 # Define a function to process each <code-*> tag and <documentation> tag
 def process_tag(match):

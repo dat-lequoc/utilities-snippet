@@ -51,7 +51,7 @@ if args.init is not None:
 </purpose>
 
 <code-files>
-  files-to-prompt --cxml 
+  files-to-prompt --cxml .
 {placeholder}
 
 </code-files>

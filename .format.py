@@ -14,7 +14,7 @@ def parse_arguments():
     parser.add_argument('--init', nargs='?', const='.', help='Initialize or replace .run.xml with template. Optionally specify a directory path.')
     parser.add_argument('-r', '--recursive', action='store_true', help='Recursively list files when initializing')
     parser.add_argument('--exclude', nargs='+', default=[
-        '.log', '.xml', '.gitignore', '.env', '.json', 'archives', 'data',
+        '.log', '.xml', '.gitignore', '.env', '.json', 'archives', 'data', '.DS_Store',
         '*aider', '*git*', '.ipynb', '__pycache__', '*cache',
         '.jsonl', '.parquet', '.safetensors', '.csv'
         ], help='List of files or extensions to exclude (default: [".log", "data/", ".json", ".jsonl", ".parquet", ".safetensors", ".csv"])')
@@ -55,7 +55,7 @@ if args.init is not None:
 </purpose>
 
 <code-files>
-  files-to-prompt --cxml .
+  files-to-prompt --cxml
 {placeholder}
 
 </code-files>

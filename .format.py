@@ -24,6 +24,12 @@ args = parse_arguments()
 
 # Handle the init option
 if args.init is not None:
+    # Backup existing .run.xml if it exists
+    if os.path.exists('.run.xml'):
+        import shutil
+        shutil.copy2('.run.xml', '.old.run.xml')
+        print("Backed up existing .run.xml to .old.run.xml")
+
     def should_exclude(item):
         return any(
             (exclude.startswith('.') and item.endswith(exclude)) or

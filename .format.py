@@ -15,9 +15,10 @@ def parse_arguments():
     parser.add_argument('-r', '--recursive', action='store_true', help='Recursively list files when initializing')
     parser.add_argument('--exclude', nargs='+', default=[
         '.log', '.xml', '.gitignore', '.env', '.json', 'archives', 'data', '.DS_Store',
-        '*aider', '*git*', '.ipynb', '__pycache__', '*cache',
+        '*aider', '*git*', '.ipynb', '__pycache__', '*cache', '.db', '.swp', '.zip',
         '.jsonl', '.parquet', '.safetensors', '.csv'
         ], help='List of files or extensions to exclude (default: [".log", "data/", ".json", ".jsonl", ".parquet", ".safetensors", ".csv"])')
+    parser.add_argument('-s', '--structure', type=int, metavar='DEPTH', help='Include project structure with specified depth')
     return parser.parse_args()
 
 args = parse_arguments()
@@ -59,6 +60,10 @@ if args.init is not None:
     template = """<purpose>
 
 </purpose>
+
+<project_structure>
+{structure_placeholder}
+</project_structure>
 
 <code-files>
   files-to-prompt --cxml
@@ -112,8 +117,18 @@ if args.init is not None:
     # Create a string with each item on a new line, wrapped in XML comments
     placeholder = "\n".join(f"  <!-- {item} -->" for item in items)
     
-    # Replace the placeholder in the template
-    template = template.format(placeholder=placeholder)
+    # Generate project structure if --structure option is used
+    structure_placeholder = ""
+    if args.structure:
+        try:
+            structure = subprocess.check_output(['tree', '-L', str(args.structure)], text=True)
+            structure_placeholder = structure.strip()
+        except subprocess.CalledProcessError:
+            print("Warning: 'tree' command failed. Make sure it's installed and in your PATH.")
+            structure_placeholder = "Project structure unavailable"
+
+    # Replace the placeholders in the template
+    template = template.format(placeholder=placeholder, structure_placeholder=structure_placeholder)
     
     with open('.run.xml', 'w') as file:
         file.write(template)

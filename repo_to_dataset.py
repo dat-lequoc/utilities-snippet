@@ -33,7 +33,7 @@ def should_ignore(path, is_dir=False):
         '.prettierignore',  '.dockerignore', 'prettierignore', '.gitignore', '.cursorignore',
     ]
     ignore_extensions = [
-        '.pyc', '.pyo', '.pyd', '.so', '.dll', '.class',
+        '.pyc', '.pyo', '.pyd', '.so', '.dll', '.class', 
         '.md', '.markdown', '.yaml', '.yml', '.json', '.xml',
         '.log', '.lock', '.cfg', '.ini', '.toml', '.parquet',
         '.webm', '.png', '.gif', '.jpg', '.jpeg', '.bmp', '.tiff',
@@ -245,6 +245,9 @@ def main():
 
     sampled_df = sample_dataset(df, sample_sizes)
     if sampled_df is not None and not sampled_df.empty:
+        # Shuffle the sampled DataFrame
+        sampled_df = sampled_df.sample(frac=1).reset_index(drop=True)
+        
         sampled_results = [(row['file_path'], read_file_content(row['file_path']), row['line_count'], row['token_count'])
                            for _, row in sampled_df.iterrows()]
         save_to_parquet(sampled_results, args.output)

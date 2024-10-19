@@ -17,7 +17,8 @@ def parse_arguments():
         '.log', '.xml', '.gitignore', '.env', '.json', 'archives', 'data', '.DS_Store',
         '*aider', '*git*', '.ipynb', '__pycache__', '*cache', '.db', '.swp', '.zip',
         '.jsonl', '.parquet', '.safetensors', '.csv'
-        ], help='List of files or extensions to exclude (default: [".log", "data/", ".json", ".jsonl", ".parquet", ".safetensors", ".csv"])')
+        ], help='List of files or extensions to exclude')
+    parser.add_argument('--exclude-folders', nargs='+', default=[], help='List of folders to exclude when using recursive option')
     parser.add_argument('-s', '--structure', type=int, metavar='DEPTH', help='Include project structure with specified depth')
     return parser.parse_args()
 
@@ -31,7 +32,9 @@ if args.init is not None:
         shutil.copy2('.run.xml', '.old.run.xml')
         print("Backed up existing .run.xml to .old.run.xml")
 
-    def should_exclude(item):
+    def should_exclude(item, is_dir=False):
+        if is_dir:
+            return any(folder == item for folder in args.exclude_folders)
         return any(
             (exclude.startswith('.') and item.endswith(exclude)) or
             (exclude.startswith('*') and exclude.endswith('*') and exclude[1:-1] in item) or
@@ -43,6 +46,7 @@ if args.init is not None:
     def get_files(directory, recursive=False):
         if recursive:
             for root, dirs, files in os.walk(directory):
+                dirs[:] = [d for d in dirs if not should_exclude(d, is_dir=True)]
                 for file in files:
                     full_path = os.path.join(root, file)
                     relative_path = os.path.relpath(full_path, directory)
@@ -51,19 +55,18 @@ if args.init is not None:
         else:
             for item in os.listdir(directory):
                 full_path = os.path.join(directory, item)
-                if not should_exclude(item):
+                is_dir = os.path.isdir(full_path)
+                if not should_exclude(item, is_dir):
                     if os.path.isfile(full_path):
                         yield item
-                    elif os.path.isdir(full_path):
+                    elif is_dir:
                         yield f"{item}/"
 
     template = """<purpose>
 
 </purpose>
 
-<project_structure>
 {structure_placeholder}
-</project_structure>
 
 <code-files>
   files-to-prompt --cxml
@@ -119,13 +122,14 @@ if args.init is not None:
     
     # Generate project structure if --structure option is used
     structure_placeholder = ""
+
     if args.structure:
         try:
             structure = subprocess.check_output(['tree', '-L', str(args.structure)], text=True)
-            structure_placeholder = structure.strip()
+            structure_placeholder = f"<project_structure>\n{structure.strip()}\n</project_structure>"
         except subprocess.CalledProcessError:
             print("Warning: 'tree' command failed. Make sure it's installed and in your PATH.")
-            structure_placeholder = "Project structure unavailable"
+            structure_placeholder = "<project_structure>Project structure unavailable</project_structure>"
 
     # Replace the placeholders in the template
     template = template.format(placeholder=placeholder, structure_placeholder=structure_placeholder)

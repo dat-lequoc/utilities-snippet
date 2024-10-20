@@ -15,11 +15,11 @@ def parse_arguments():
     parser.add_argument('-r', '--recursive', action='store_true', help='Recursively list files when initializing')
     parser.add_argument('--exclude', nargs='+', default=[
         '.log', '.xml', '.gitignore', '.env', '.json', 'archives', 'data', '.DS_Store',
-        '*aider', '*git*', '.ipynb', '__pycache__', '*cache', '.db', '.swp', '.zip',
+        '*aider', '*git*', '.ipynb', '__pycache__', '*cache', '.db', '.swp', '.zip', 'repo',
         '.jsonl', '.parquet', '.safetensors', '.csv'
         ], help='List of files or extensions to exclude')
     parser.add_argument('--exclude-folders', nargs='+', default=[], help='List of folders to exclude when using recursive option')
-    parser.add_argument('-s', '--structure', type=int, metavar='DEPTH', help='Include project structure with specified depth')
+    parser.add_argument('-s', '--structure', type=int, nargs='?', const=2, metavar='DEPTH', default=2, help='Include project structure with specified depth (default: 2)')
     return parser.parse_args()
 
 args = parse_arguments()
@@ -124,15 +124,26 @@ if args.init is not None:
     structure_placeholder = ""
 
     if args.structure:
-        try:
-            structure = subprocess.check_output(['tree', '-L', str(args.structure)], text=True)
-            structure_placeholder = f"<project_structure>\n{structure.strip()}\n</project_structure>"
-        except subprocess.CalledProcessError:
-            print("Warning: 'tree' command failed. Make sure it's installed and in your PATH.")
-            structure_placeholder = "<project_structure>Project structure unavailable</project_structure>"
+        structure_file = '.structure.xml'
+        if os.path.exists(structure_file):
+            with open(structure_file, 'r') as f:
+                structure_content = f.read().strip()
+                # Remove the outer <project_structure> tags if present
+                structure_placeholder = re.sub(r'^\s*<project_structure>\s*(.*)\s*</project_structure>\s*$', r'\1', structure_content, flags=re.DOTALL)
+        else:
+            try:
+                structure = subprocess.check_output(['tree', '--gitignore', '-L', str(args.structure)], text=True)
+                structure_placeholder = structure.strip()
+                with open(structure_file, 'w') as f:
+                    f.write(f"<project_structure>\n{structure_placeholder}\n</project_structure>")
+            except subprocess.CalledProcessError:
+                print("Warning: 'tree' command failed. Make sure it's installed and in your PATH.")
+                structure_placeholder = "Project structure unavailable"
+        
+        structure_placeholder = f"<project_structure>\n{structure_placeholder}\n</project_structure>"
 
     # Replace the placeholders in the template
-    template = template.format(placeholder=placeholder, structure_placeholder=structure_placeholder)
+    template = template.format(placeholder=placeholder, structure_placeholder=structure_placeholder.strip())
     
     with open('.run.xml', 'w') as file:
         file.write(template)

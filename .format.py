@@ -17,11 +17,12 @@ def parse_arguments():
     parser.add_argument('-r', '--recursive', action='store_true', help='Recursively list files when initializing')
     parser.add_argument('--exclude', nargs='+', default=[
         '.log', '.xml', '.gitignore', '.env', '.json', 'archives', 'data', '.DS_Store',
-        '*aider', '*git*', '.ipynb', '__pycache__', '*cache', '.db', '.swp', '.zip', 'repo',
+        '*aider', '*git*', '.ipynb', '__pycache__', '*cache', '.db', '.swp', '.zip', 'repo', '__init__.py',
         '.jsonl', '.parquet', '.safetensors', '.csv'
         ], help='List of files or extensions to exclude')
     parser.add_argument('--exclude-folders', nargs='+', default=[], help='List of folders to exclude when using recursive option')
     parser.add_argument('-s', '--structure', type=int, nargs='?', const=2, metavar='DEPTH', default=2, help='Include project structure with specified depth (default: 2)')
+    parser.add_argument('--on', action='store_true', help='Do not use XML comments for files in code-files section when initializing')
     return parser.parse_args()
 
 args = parse_arguments()
@@ -131,8 +132,11 @@ if args.init is not None:
     
     items = list(get_files(directory, recursive=args.recursive))
     
-    # Create a string with each item on a new line, wrapped in XML comments
-    placeholder = "\n".join(f"  <!-- {item} -->" for item in items)
+    # Create a string with each item on a new line, optionally wrapped in XML comments
+    if args.on:
+        placeholder = "\n".join(f"  {item}" for item in items)
+    else:
+        placeholder = "\n".join(f"  <!-- {item} -->" for item in items)
     
     # Generate project structure if --structure option is used
     structure_placeholder = ""

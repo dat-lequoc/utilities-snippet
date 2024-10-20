@@ -5,6 +5,8 @@ import argparse
 import os
 import requests
 from bs4 import BeautifulSoup
+from pathspec import PathSpec
+from pathspec.patterns import GitWildMatchPattern
 
 def parse_arguments():
     parser = argparse.ArgumentParser(description="Process XML files and execute code blocks.")
@@ -44,19 +46,31 @@ if args.init is not None:
         )
 
     def get_files(directory, recursive=False):
+        gitignore_path = os.path.join(directory, '.gitignore')
+        if os.path.exists(gitignore_path):
+            with open(gitignore_path, 'r') as gitignore_file:
+                spec = PathSpec.from_lines(GitWildMatchPattern, gitignore_file)
+        else:
+            spec = None
+
+        def is_ignored(path):
+            if spec:
+                return spec.match_file(path)
+            return False
+
         if recursive:
             for root, dirs, files in os.walk(directory):
-                dirs[:] = [d for d in dirs if not should_exclude(d, is_dir=True)]
+                dirs[:] = [d for d in dirs if not should_exclude(d, is_dir=True) and not is_ignored(os.path.join(root, d))]
                 for file in files:
                     full_path = os.path.join(root, file)
                     relative_path = os.path.relpath(full_path, directory)
-                    if not should_exclude(relative_path):
+                    if not should_exclude(relative_path) and not is_ignored(relative_path):
                         yield relative_path
         else:
             for item in os.listdir(directory):
                 full_path = os.path.join(directory, item)
                 is_dir = os.path.isdir(full_path)
-                if not should_exclude(item, is_dir):
+                if not should_exclude(item, is_dir) and not is_ignored(item):
                     if os.path.isfile(full_path):
                         yield item
                     elif is_dir:

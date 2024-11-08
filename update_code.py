@@ -5,7 +5,9 @@ from openai import OpenAI
 
 SYSTEM_PROMPT = """You are an coding assistant that helps merge code updates, ensuring every modification is fully integrated."""
 
-USER_PROMPT = """Merge all changes from the <update> snippet into the <code> below.
+USER_PROMPT = """Merge all changes from the update snippet into the <code> below.
+{message}
+<update>{update}</update>
 - Preserve the code's structure, order, comments, and indentation exactly.
 - Output only the raw updated code without any wrapping tags or markup
 - Do not include any additional text, explanations, placeholders, ellipses, or code fences.
@@ -21,6 +23,7 @@ Provide the complete updated code without any wrapping tags."""
 def parse_args():
     parser = argparse.ArgumentParser(description='Update code file using OpenAI API')
     parser.add_argument('file_path', help='Path to the file to be updated')
+    parser.add_argument('--message', help='Message to include above the update')
     parser.add_argument('--debug', action='store_true', help='Enable debug output')
     group = parser.add_mutually_exclusive_group()
     group.add_argument('--gpt4o', action='store_true', help='Use GPT-4o model')
@@ -88,7 +91,11 @@ def update_file_content(file_path, debug=False, model_args=None):
                 },
                 {
                     "role": "user",
-                    "content": USER_PROMPT.format(code, update_snippet)
+                    "content": USER_PROMPT.format(
+                        code=code,
+                        message=f"\n{args.message}\n" if args.message else "",
+                        update=update_snippet
+                    )
                 }
             ],
             prediction={

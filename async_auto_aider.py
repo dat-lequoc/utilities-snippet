@@ -281,6 +281,7 @@ async def run_task(i, task, model_flag, aider_args, args, total_tasks, results, 
                     debug=args.auto_commits,  # Assuming debug based on auto_commits; adjust as needed
                     model_choice='gpt4o' if '--gpt4o' in aider_args else 'mini'  # Adjust based on aider_args
                 )
+                update_code_files.add(file_path)
                 if update_success:
                     success_message = f"Task {original_task_number} (update) executed successfully."
                     print(success_message)
@@ -430,8 +431,10 @@ async def main():
 
     total_tasks = len(tasks)  # Store the total number of tasks
 
-    # Dictionary to keep track of task results
+    # Dictionaries to keep track of results and file lists
     results = {}
+    aider_files = set()
+    update_code_files = set()
 
     # Create an event to signal timeout
     timeout_event = asyncio.Event()
@@ -465,6 +468,15 @@ async def main():
         action = task_result.get('action', 'N/A')
         path = task_result.get('path', 'N/A')
         print(f"Task {task_num}: {status}, Action: {action}, Path: {path}, Code Missing: {code_missing}, Unexpected Action: {unexpected_action}")
+
+    # Display lists of files processed by each method
+    print("\nFiles processed by aider:")
+    for file in sorted(aider_files):
+        print(f"  - {file}")
+
+    print("\nFiles processed by update_code.py:")
+    for file in sorted(update_code_files):
+        print(f"  - {file}")
 
 if __name__ == "__main__":
     asyncio.run(main())

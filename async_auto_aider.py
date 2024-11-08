@@ -10,17 +10,14 @@ from typing import List, Dict, Any
 import asyncio
 import shutil  # Added for cleaning log directory
 
-# Import the update_file_content function from update_code.py
-from update_code import update_file_content
-
 def parse_fault_tolerant_xml(xml_string: str) -> List[Dict[str, Any]]:
-    # Normalize line endings and clean whitespace
-    xml_string = xml_string.replace('\r\n', '\n').replace('\r', '\n').strip()
+    # Normalize line endings
+    xml_string = xml_string.replace('\r\n', '\n').replace('\r', '\n')
 
-    # Remove any XML declaration
+    # Remove any XML declaration to avoid parsing issues
     xml_string = re.sub(r'<\?xml.*?\?>', '', xml_string)
 
-    # Wrap in root element if needed
+    # Wrap content in a root element if not present
     if not xml_string.strip().startswith('<root>'):
         xml_string = f"<root>{xml_string}</root>"
 
@@ -30,53 +27,31 @@ def parse_fault_tolerant_xml(xml_string: str) -> List[Dict[str, Any]]:
     result = []
 
     try:
-        # Parse XML structure
+        # Parse the entire XML structure
         root = ET.fromstring(xml_string)
-        
+
         # Find all file elements
-        for file_elem in root.findall('.//file'):
-            file_info = {
-                'path': '',
-                'action': '',
-                'description': '',
-                'code': ''
-            }
-            
-            # Extract each field
-            path_elem = file_elem.find('path')
-            action_elem = file_elem.find('action')
-            desc_elem = file_elem.find('description')
-            code_elem = file_elem.find('code')
-            
-            if path_elem is not None and path_elem.text:
-                file_info['path'] = path_elem.text.strip()
-            if action_elem is not None and action_elem.text:
-                file_info['action'] = action_elem.text.strip()
-            if desc_elem is not None and desc_elem.text:
-                file_info['description'] = desc_elem.text.strip()
-            if code_elem is not None and code_elem.text:
-                file_info['code'] = code_elem.text.strip()
-                
+        file_elements = root.findall('.//file')
+
+        for file_elem in file_elements:
+            file_info = {}
+            for child in file_elem:
+                if child.tag == 'code':
+                    file_info[child.tag] = child.text.strip() if child.text else ""
+                else:
+                    file_info[child.tag] = child.text.strip() if child.text else ""
             result.append(file_info)
     except ET.ParseError as e:
         print(f"Warning: Error parsing XML, attempting manual extraction: {str(e)}", file=sys.stderr)
-        # Manual extraction as fallback
-        file_blocks = re.findall(r'<file>\s*(.*?)\s*</file>', xml_string, re.DOTALL)
+        # If parsing fails, try to extract information manually
+        file_blocks = re.findall(r'<file>.*?</file>', xml_string, re.DOTALL)
         for block in file_blocks:
-            file_info = {
-                'path': '',
-                'action': '',
-                'description': '',
-                'code': ''
-            }
-            
-            # Extract each field with proper whitespace handling
+            file_info = {}
             for tag in ['path', 'action', 'description', 'code']:
-                match = re.search(f'<{tag}>\s*(.*?)\s*</{tag}>', block, re.DOTALL)
+                match = re.search(f'<{tag}>(.*?)</{tag}>', block, re.DOTALL)
                 if match:
                     file_info[tag] = match.group(1).strip()
-            
-            if any(file_info.values()):  # Only add if at least one field has content
+            if file_info:
                 result.append(file_info)
             else:
                 print(f"Warning: Unable to extract information from block: {block[:100]}...", file=sys.stderr)
@@ -147,6 +122,7 @@ def get_input(input_file=None):
             print(f"Error reading input file: {e}", file=sys.stderr)
             sys.exit(1)
     else:
+        print("Using ... model")
         print("Please paste your text below. When finished, press Ctrl+D (Unix) or Ctrl+Z (Windows) followed by Enter:")
         return sys.stdin.read().strip()
 
@@ -224,7 +200,7 @@ def format_task(task):
             formatted_task += "No code provided.\n"
     return formatted_task
 
-async def run_task(i, task, model_flag, aider_args, args, total_tasks, results, timeout_event, aider_files, update_code_files):
+async def run_task(i, task, model_flag, aider_args, args, total_tasks, results, timeout_event):
     if timeout_event.is_set():
         return  # Skip execution if timeout has occurred
 
@@ -273,110 +249,79 @@ async def run_task(i, task, model_flag, aider_args, args, total_tasks, results, 
                 results[original_task_number] = task_result
                 return  # Skip to the next task after deletion
 
-            elif action == "update":
-                # Use the update_file_content function from update_code.py
+            dir_path = os.path.dirname(file_path)
+
+            if action == "create" and dir_path:
+                # Create directory only if action is create and dir_path is not empty
+                mkdir_command = f'mkdir -p {shlex.quote(dir_path)}'
+                log_fh.write(f"Creating directory: {mkdir_command}\n")
+                print(f"Creating directory: {mkdir_command}")
                 try:
-                    update_file_content(
-                        file_path=file_path,
-                        debug=args.auto_commits,  # Using auto_commits as debug flag
-                        model_args=argparse.Namespace(
-                            gpt4o='--gpt4o' in aider_args,
-                            mini='--gpt4o' not in aider_args,
-                            message=task.get('description', '')
-                        )
-                    )
-                    update_success = True
-                except Exception as e:
-                    print(f"Error during update: {e}")
-                    update_success = False
-                update_code_files.add(file_path)
-                if update_success:
-                    success_message = f"Task {original_task_number} (update) executed successfully."
+                    subprocess.run(mkdir_command, shell=True, check=True)
+                except subprocess.CalledProcessError as e:
+                    warning_message = f"Warning: Failed to create directory: {e}"
+                    print(warning_message)
+                    log_fh.write(warning_message + "\n")
+
+            # Touch file for create or update actions
+            if action in ["create", "update"]:
+                touch_command = f'touch {shlex.quote(file_path)}'
+                log_fh.write(f"Creating/updating file: {touch_command}\n")
+                print(f"Creating/updating file: {touch_command}")
+                try:
+                    subprocess.run(touch_command, shell=True, check=True)
+                except subprocess.CalledProcessError as e:
+                    warning_message = f"Warning: Failed to create/update file: {e}"
+                    print(warning_message)
+                    log_fh.write(warning_message + "\n")
+
+            # Format the task to string before sending to the command
+            formatted_task = format_task(task)
+            escaped_task = shlex.quote(formatted_task)
+            command = (
+                f'python -m aider '
+                f'--yes '
+                f'{model_flag} '
+                f'--no-suggest-shell-commands '
+                f'{aider_args} '
+                f'--message {escaped_task}'
+            )
+            if action.lower() != 'delete':
+                command += f' {shlex.quote(file_path)}'
+
+            log_fh.write(f"Running command: {command}\n")
+            print(f"Running command: {trim_command(command)}")
+
+            try:
+                process = await asyncio.create_subprocess_shell(
+                    command,
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE,
+                )
+                stdout, stderr = await process.communicate()
+
+                # Write outputs to log file
+                log_fh.write("Standard Output:\n")
+                log_fh.write(stdout.decode() + "\n")
+                log_fh.write("Standard Error:\n")
+                log_fh.write(stderr.decode() + "\n")
+
+                if process.returncode == 0:
+                    success_message = f"Task {original_task_number} executed successfully."
                     print(success_message)
                     log_fh.write(success_message + "\n")
-                    task_result['status'] = True
+                    task_result['status'] = True  # Mark as success
                 else:
-                    error_message = f"Error executing task {original_task_number} (update). See {log_file} for details."
+                    error_message = f"Error executing task {original_task_number}. See {log_file} for details."
                     print(error_message)
                     log_fh.write(error_message + "\n")
-                    task_result['status'] = False
-
-            else:
-                # Handle 'create' and other actions using the existing 'aider' command
-                dir_path = os.path.dirname(file_path)
-
-                if action == "create" and dir_path:
-                    # Create directory only if action is create and dir_path is not empty
-                    mkdir_command = f'mkdir -p {shlex.quote(dir_path)}'
-                    log_fh.write(f"Creating directory: {mkdir_command}\n")
-                    print(f"Creating directory: {mkdir_command}")
-                    try:
-                        subprocess.run(mkdir_command, shell=True, check=True)
-                    except subprocess.CalledProcessError as e:
-                        warning_message = f"Warning: Failed to create directory: {e}"
-                        print(warning_message)
-                        log_fh.write(warning_message + "\n")
-
-                # Touch file for create or update actions
-                if action in ["create", "update"]:
-                    touch_command = f'touch {shlex.quote(file_path)}'
-                    log_fh.write(f"Creating/updating file: {touch_command}\n")
-                    print(f"Creating/updating file: {touch_command}")
-                    try:
-                        subprocess.run(touch_command, shell=True, check=True)
-                    except subprocess.CalledProcessError as e:
-                        warning_message = f"Warning: Failed to create/update file: {e}"
-                        print(warning_message)
-                        log_fh.write(warning_message + "\n")
-
-                # Format the task to string before sending to the command
-                formatted_task = format_task(task)
-                escaped_task = shlex.quote(formatted_task)
-                command = (
-                    f'python -m aider '
-                    f'--yes '
-                    f'{model_flag} '
-                    f'--no-suggest-shell-commands '
-                    f'{aider_args} '
-                    f'--message {escaped_task}'
-                )
-                if action.lower() != 'delete':
-                    command += f' {shlex.quote(file_path)}'
-
-                log_fh.write(f"Running command: {command}\n")
-                print(f"Running command: {trim_command(command)}")
-
-                try:
-                    process = await asyncio.create_subprocess_shell(
-                        command,
-                        stdout=asyncio.subprocess.PIPE,
-                        stderr=asyncio.subprocess.PIPE,
-                    )
-                    stdout, stderr = await process.communicate()
-
-                    # Write outputs to log file
-                    log_fh.write("Standard Output:\n")
-                    log_fh.write(stdout.decode() + "\n")
-                    log_fh.write("Standard Error:\n")
-                    log_fh.write(stderr.decode() + "\n")
-
-                    if process.returncode == 0:
-                        success_message = f"Task {original_task_number} executed successfully."
-                        print(success_message)
-                        log_fh.write(success_message + "\n")
-                        task_result['status'] = True  # Mark as success
-                        aider_files.add(file_path)
-                    else:
-                        error_message = f"Error executing task {original_task_number}. See {log_file} for details."
-                        print(error_message)
-                        log_fh.write(error_message + "\n")
-                        task_result['status'] = False  # Mark as failure
-
-                except Exception as e:
-                    exception_message = f"Exception while executing task {original_task_number}: {e}"
-                    print(exception_message)
-                    log_fh.write(exception_message + "\n")
                     task_result['status'] = False  # Mark as failure
+
+            except Exception as e:
+                exception_message = f"Exception while executing task {original_task_number}: {e}"
+                print(exception_message)
+                log_fh.write(exception_message + "\n")
+                task_result['status'] = False  # Mark as failure
 
     except Exception as e:
         print(f"Failed to write to log file {log_file}: {e}")
@@ -440,10 +385,8 @@ async def main():
 
     total_tasks = len(tasks)  # Store the total number of tasks
 
-    # Dictionaries to keep track of results and file lists
+    # Dictionary to keep track of task results
     results = {}
-    aider_files = set()
-    update_code_files = set()
 
     # Create an event to signal timeout
     timeout_event = asyncio.Event()
@@ -452,7 +395,7 @@ async def main():
     task_coroutines = []
     for i, task in enumerate(selected_tasks):
         task_coroutines.append(
-            run_task(i, task, model_flag, aider_args, args, total_tasks, results, timeout_event, aider_files, update_code_files)
+            run_task(i, task, model_flag, aider_args, args, total_tasks, results, timeout_event)
         )
 
     # Set the timeout
@@ -477,15 +420,6 @@ async def main():
         action = task_result.get('action', 'N/A')
         path = task_result.get('path', 'N/A')
         print(f"Task {task_num}: {status}, Action: {action}, Path: {path}, Code Missing: {code_missing}, Unexpected Action: {unexpected_action}")
-
-    # Display lists of files processed by each method
-    print("\nFiles processed by aider:")
-    for file in sorted(aider_files):
-        print(f"  - {file}")
-
-    print("\nFiles processed by update_code.py:")
-    for file in sorted(update_code_files):
-        print(f"  - {file}")
 
 if __name__ == "__main__":
     asyncio.run(main())

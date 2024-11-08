@@ -21,6 +21,9 @@ def parse_args():
     parser = argparse.ArgumentParser(description='Update code file using OpenAI API')
     parser.add_argument('file_path', help='Path to the file to be updated')
     parser.add_argument('--debug', action='store_true', help='Enable debug output')
+    group = parser.add_mutually_exclusive_group()
+    group.add_argument('--gpt4o', action='store_true', help='Use GPT-4o model')
+    group.add_argument('--mini', action='store_true', default=True, help='Use GPT-4o-mini model (default)')
     return parser.parse_args()
 
 def get_update_snippet():
@@ -35,7 +38,7 @@ def get_update_snippet():
         print("Processing...")
         return "\n".join(lines)
 
-def update_file_content(file_path, debug=False):
+def update_file_content(file_path, debug=False, model_args=None):
     # Read the input file
     if debug:
         print(f"Reading file: {file_path}")
@@ -66,7 +69,7 @@ def update_file_content(file_path, debug=False):
         start_time = time.time()
         
         completion = client.chat.completions.create(
-            model="gpt-4o",
+            model="gpt-4o" if args.gpt4o else "gpt-4o-mini",
             messages=[
                 {
                     "role": "system",
@@ -97,7 +100,8 @@ def update_file_content(file_path, debug=False):
         completion_tokens = completion.usage.completion_tokens
         throughput = completion_tokens / elapsed_time
         
-        print(f"Successfully updated {file_path}")
+        model_name = "GPT-4o" if args.gpt4o else "GPT-4o-mini"
+        print(f"Successfully updated {file_path} using {model_name}")
         print(f"Throughput: {throughput:.2f} tokens/second ({completion_tokens} tokens in {elapsed_time:.2f}s)")
 
     except Exception as e:
@@ -107,4 +111,4 @@ if __name__ == "__main__":
     args = parse_args()
     if args.debug:
         print("Debug mode enabled")
-    update_file_content(args.file_path, args.debug)
+    update_file_content(args.file_path, args.debug, args)

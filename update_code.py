@@ -1,15 +1,18 @@
 import argparse
 from openai import OpenAI
 
-SYSTEM_PROMPT = """You are an expert code editor. Your task is to merge all changes from the update snippet into the provided code, ensuring every modification is fully integrated.
+SYSTEM_PROMPT = """You are an coding assistant that helps merge code updates, ensuring every modification is fully integrated."""
 
-Instructions:
-- Preserve the code's structure, order, comments, and indentation exactly
-- Only output the complete updated code
-- Do not include any additional text, explanations, placeholders, or code fences
-- Do not wrap the output in any tags
+USER_PROMPT = """Merge all changes from the <update> snippet into the <code> below.
+- Preserve the code's structure, order, comments, and indentation exactly.
+- Output only the updated code.
+- Do not include any additional text, explanations, placeholders, ellipses, or code fences.
 
-The update snippet describes the changes to make. The code that follows is the content to update."""
+<code>{}</code>
+
+<update>{}</update>
+
+Provide the complete updated code."""
 
 def parse_args():
     parser = argparse.ArgumentParser(description='Update code file using OpenAI API')
@@ -54,10 +57,14 @@ def update_file_content(file_path):
                     "content": SYSTEM_PROMPT
                 },
                 {
-                    "role": "user", 
-                    "content": f"Update instructions:\n{update_snippet}\n\nCode to update:\n{code}"
+                    "role": "user",
+                    "content": USER_PROMPT.format(code, update_snippet)
                 }
-            ]
+            ],
+            prediction={
+                "type": "content",
+                "content": code
+            }
         )
 
         # Get the modified content

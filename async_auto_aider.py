@@ -10,6 +10,9 @@ from typing import List, Dict, Any
 import asyncio
 import shutil  # Added for cleaning log directory
 
+# Import the perform_update function from update_code.py
+from update_code import perform_update
+
 def parse_fault_tolerant_xml(xml_string: str) -> List[Dict[str, Any]]:
     # Normalize line endings
     xml_string = xml_string.replace('\r\n', '\n').replace('\r', '\n')
@@ -248,79 +251,100 @@ async def run_task(i, task, model_flag, aider_args, args, total_tasks, results, 
                 results[original_task_number] = task_result
                 return  # Skip to the next task after deletion
 
-            dir_path = os.path.dirname(file_path)
-
-            if action == "create" and dir_path:
-                # Create directory only if action is create and dir_path is not empty
-                mkdir_command = f'mkdir -p {shlex.quote(dir_path)}'
-                log_fh.write(f"Creating directory: {mkdir_command}\n")
-                print(f"Creating directory: {mkdir_command}")
-                try:
-                    subprocess.run(mkdir_command, shell=True, check=True)
-                except subprocess.CalledProcessError as e:
-                    warning_message = f"Warning: Failed to create directory: {e}"
-                    print(warning_message)
-                    log_fh.write(warning_message + "\n")
-
-            # Touch file for create or update actions
-            if action in ["create", "update"]:
-                touch_command = f'touch {shlex.quote(file_path)}'
-                log_fh.write(f"Creating/updating file: {touch_command}\n")
-                print(f"Creating/updating file: {touch_command}")
-                try:
-                    subprocess.run(touch_command, shell=True, check=True)
-                except subprocess.CalledProcessError as e:
-                    warning_message = f"Warning: Failed to create/update file: {e}"
-                    print(warning_message)
-                    log_fh.write(warning_message + "\n")
-
-            # Format the task to string before sending to the command
-            formatted_task = format_task(task)
-            escaped_task = shlex.quote(formatted_task)
-            command = (
-                f'python -m aider '
-                f'--yes '
-                f'{model_flag} '
-                f'--no-suggest-shell-commands '
-                f'{aider_args} '
-                f'--message {escaped_task}'
-            )
-            if action.lower() != 'delete':
-                command += f' {shlex.quote(file_path)}'
-
-            log_fh.write(f"Running command: {command}\n")
-            print(f"Running command: {trim_command(command)}")
-
-            try:
-                process = await asyncio.create_subprocess_shell(
-                    command,
-                    stdout=asyncio.subprocess.PIPE,
-                    stderr=asyncio.subprocess.PIPE,
+            elif action == "update":
+                # Use the perform_update function from update_code.py
+                update_success = perform_update(
+                    file_path=file_path,
+                    message=task.get('description', ''),
+                    debug=args.auto_commits,  # Assuming debug based on auto_commits; adjust as needed
+                    model_choice='gpt4o' if '--gpt4o' in aider_args else 'mini'  # Adjust based on aider_args
                 )
-                stdout, stderr = await process.communicate()
-
-                # Write outputs to log file
-                log_fh.write("Standard Output:\n")
-                log_fh.write(stdout.decode() + "\n")
-                log_fh.write("Standard Error:\n")
-                log_fh.write(stderr.decode() + "\n")
-
-                if process.returncode == 0:
-                    success_message = f"Task {original_task_number} executed successfully."
+                if update_success:
+                    success_message = f"Task {original_task_number} (update) executed successfully."
                     print(success_message)
                     log_fh.write(success_message + "\n")
-                    task_result['status'] = True  # Mark as success
+                    task_result['status'] = True
                 else:
-                    error_message = f"Error executing task {original_task_number}. See {log_file} for details."
+                    error_message = f"Error executing task {original_task_number} (update). See {log_file} for details."
                     print(error_message)
                     log_fh.write(error_message + "\n")
-                    task_result['status'] = False  # Mark as failure
+                    task_result['status'] = False
 
-            except Exception as e:
-                exception_message = f"Exception while executing task {original_task_number}: {e}"
-                print(exception_message)
-                log_fh.write(exception_message + "\n")
-                task_result['status'] = False  # Mark as failure
+            else:
+                # Handle 'create' and other actions using the existing 'aider' command
+                dir_path = os.path.dirname(file_path)
+
+                if action == "create" and dir_path:
+                    # Create directory only if action is create and dir_path is not empty
+                    mkdir_command = f'mkdir -p {shlex.quote(dir_path)}'
+                    log_fh.write(f"Creating directory: {mkdir_command}\n")
+                    print(f"Creating directory: {mkdir_command}")
+                    try:
+                        subprocess.run(mkdir_command, shell=True, check=True)
+                    except subprocess.CalledProcessError as e:
+                        warning_message = f"Warning: Failed to create directory: {e}"
+                        print(warning_message)
+                        log_fh.write(warning_message + "\n")
+
+                # Touch file for create or update actions
+                if action in ["create", "update"]:
+                    touch_command = f'touch {shlex.quote(file_path)}'
+                    log_fh.write(f"Creating/updating file: {touch_command}\n")
+                    print(f"Creating/updating file: {touch_command}")
+                    try:
+                        subprocess.run(touch_command, shell=True, check=True)
+                    except subprocess.CalledProcessError as e:
+                        warning_message = f"Warning: Failed to create/update file: {e}"
+                        print(warning_message)
+                        log_fh.write(warning_message + "\n")
+
+                # Format the task to string before sending to the command
+                formatted_task = format_task(task)
+                escaped_task = shlex.quote(formatted_task)
+                command = (
+                    f'python -m aider '
+                    f'--yes '
+                    f'{model_flag} '
+                    f'--no-suggest-shell-commands '
+                    f'{aider_args} '
+                    f'--message {escaped_task}'
+                )
+                if action.lower() != 'delete':
+                    command += f' {shlex.quote(file_path)}'
+
+                log_fh.write(f"Running command: {command}\n")
+                print(f"Running command: {trim_command(command)}")
+
+                try:
+                    process = await asyncio.create_subprocess_shell(
+                        command,
+                        stdout=asyncio.subprocess.PIPE,
+                        stderr=asyncio.subprocess.PIPE,
+                    )
+                    stdout, stderr = await process.communicate()
+
+                    # Write outputs to log file
+                    log_fh.write("Standard Output:\n")
+                    log_fh.write(stdout.decode() + "\n")
+                    log_fh.write("Standard Error:\n")
+                    log_fh.write(stderr.decode() + "\n")
+
+                    if process.returncode == 0:
+                        success_message = f"Task {original_task_number} executed successfully."
+                        print(success_message)
+                        log_fh.write(success_message + "\n")
+                        task_result['status'] = True  # Mark as success
+                    else:
+                        error_message = f"Error executing task {original_task_number}. See {log_file} for details."
+                        print(error_message)
+                        log_fh.write(error_message + "\n")
+                        task_result['status'] = False  # Mark as failure
+
+                except Exception as e:
+                    exception_message = f"Exception while executing task {original_task_number}: {e}"
+                    print(exception_message)
+                    log_fh.write(exception_message + "\n")
+                    task_result['status'] = False  # Mark as failure
 
     except Exception as e:
         print(f"Failed to write to log file {log_file}: {e}")
@@ -422,4 +446,3 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
-

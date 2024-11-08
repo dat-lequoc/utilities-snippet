@@ -357,6 +357,7 @@ async def run_task(i, task, model_flag, aider_args, args, total_tasks, results, 
                         print(success_message)
                         log_fh.write(success_message + "\n")
                         task_result['status'] = True  # Mark as success
+                        aider_files.add(file_path)
                     else:
                         error_message = f"Error executing task {original_task_number}. See {log_file} for details."
                         print(error_message)

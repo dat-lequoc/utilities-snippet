@@ -17,6 +17,7 @@ Provide the complete updated code without any wrapping tags."""
 def parse_args():
     parser = argparse.ArgumentParser(description='Update code file using OpenAI API')
     parser.add_argument('file_path', help='Path to the file to be updated')
+    parser.add_argument('--debug', action='store_true', help='Enable debug output')
     return parser.parse_args()
 
 def get_update_snippet():
@@ -29,11 +30,15 @@ def get_update_snippet():
     except EOFError:
         return "\n".join(lines)
 
-def update_file_content(file_path):
+def update_file_content(file_path, debug=False):
     # Read the input file
+    if debug:
+        print(f"Reading file: {file_path}")
     try:
         with open(file_path, 'r') as file:
             code = file.read()
+        if debug:
+            print(f"Successfully read {len(code)} characters from file")
     except FileNotFoundError:
         print(f"Error: File {file_path} not found")
         return
@@ -45,9 +50,13 @@ def update_file_content(file_path):
     client = OpenAI()
 
     try:
-        # Make API call
         # Get update instructions from user
+        if debug:
+            print("Waiting for update snippet input...")
         update_snippet = get_update_snippet()
+        if debug:
+            print(f"Received update snippet ({len(update_snippet)} characters)")
+            print("Making API call to OpenAI...")
         
         completion = client.chat.completions.create(
             model="gpt-4o",
@@ -71,6 +80,8 @@ def update_file_content(file_path):
         new_content = completion.choices[0].message.content
 
         # Write the modified content back to the file
+        if debug:
+            print(f"Writing updated content ({len(new_content)} characters)")
         with open(file_path, 'w') as file:
             file.write(new_content)
         
@@ -81,4 +92,6 @@ def update_file_content(file_path):
 
 if __name__ == "__main__":
     args = parse_args()
-    update_file_content(args.file_path)
+    if args.debug:
+        print("Debug mode enabled")
+    update_file_content(args.file_path, args.debug)

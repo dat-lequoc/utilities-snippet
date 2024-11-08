@@ -47,7 +47,11 @@ def update_file_content(file_path):
                     "role": "user",
                     "content": code
                 }
-            ]
+            ],
+            prediction={
+                "type": "content",
+                "content": code
+            }
         )
 
         # Get the modified content

@@ -8,6 +8,8 @@ USER_PROMPT = """Merge all changes from the <update> snippet into the <code> bel
 - Preserve the code's structure, order, comments, and indentation exactly.
 - Output only the raw updated code without any wrapping tags or markup
 - Do not include any additional text, explanations, placeholders, ellipses, or code fences.
+- Discard instruction comments from
+ updated snippet, while keeping existing code comments
 
 <code>{}</code>
 

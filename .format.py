@@ -21,7 +21,7 @@ def parse_arguments():
         '.jsonl', '.parquet', '.safetensors', '.csv'
         ], help='List of files or extensions to exclude')
     parser.add_argument('--exclude-folders', nargs='+', default=[], help='List of folders to exclude when using recursive option')
-    parser.add_argument('-s', '--structure', type=int, nargs='?', const=2, metavar='DEPTH', default=2, help='Include project structure with specified depth (default: 2)')
+    parser.add_argument('-s', '--structure', type=int, nargs='?', const=2, metavar='DEPTH', help='Include project structure with specified depth')
     parser.add_argument('--on', action='store_true', help='Do not use XML comments for files in code-files section when initializing')
     return parser.parse_args()
 
@@ -42,7 +42,8 @@ if args.init is not None:
             (exclude.startswith('.') and item.endswith(exclude)) or
             (exclude.startswith('*') and exclude.endswith('*') and exclude[1:-1] in item) or
             (exclude.startswith('*') and exclude[1:] in item) or
-            (not exclude.startswith('*') and not exclude.startswith('.') and exclude == item)
+            (not exclude.startswith('*') and not exclude.startswith('.') and exclude == item) or
+            '__init__.py' in item
             for exclude in args.exclude
         )
 
@@ -104,26 +105,20 @@ if args.init is not None:
 
 <!--
 <instructions>
-  <instruction>
-    Provide code for each new or updated file in a single block. Only include the updated parts
+    - Provide code for each new or updated file in a single block. Only include the updated parts
     of the code in your response.
-  </instruction>
-  <instruction>
-    Maintain the existing file names unless a change is necessary for better clarity or
+    - Maintain the existing file names unless a change is necessary for better clarity or
     structure. Respect the currently used libraries to avoid introducing unnecessary
     dependencies.
-  </instruction>
 </instructions>
 
 <output_format>
-  <files_content>
-    <file>
+  <file>
       <path>path/to/file</path>
       <action>create | update | delete</action>
       <description>Description of changes and purpose.</description>
       <code>Updated parts of the code</code>
-    </file>
-  </files_content>
+  </file>
 </output_format> 
 -->
 """
@@ -142,6 +137,7 @@ if args.init is not None:
     structure_placeholder = ""
 
     if args.structure:
+        print(args.structure)
         structure_file = '.structure.xml'
         if os.path.exists(structure_file):
             with open(structure_file, 'r') as f:

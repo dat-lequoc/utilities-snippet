@@ -14,13 +14,13 @@ import shutil  # Added for cleaning log directory
 from update_code import perform_update
 
 def parse_fault_tolerant_xml(xml_string: str) -> List[Dict[str, Any]]:
-    # Normalize line endings
-    xml_string = xml_string.replace('\r\n', '\n').replace('\r', '\n')
+    # Normalize line endings and clean whitespace
+    xml_string = xml_string.replace('\r\n', '\n').replace('\r', '\n').strip()
 
-    # Remove any XML declaration to avoid parsing issues
+    # Remove any XML declaration
     xml_string = re.sub(r'<\?xml.*?\?>', '', xml_string)
 
-    # Wrap content in a root element if not present
+    # Wrap in root element if needed
     if not xml_string.strip().startswith('<root>'):
         xml_string = f"<root>{xml_string}</root>"
 
@@ -30,31 +30,53 @@ def parse_fault_tolerant_xml(xml_string: str) -> List[Dict[str, Any]]:
     result = []
 
     try:
-        # Parse the entire XML structure
+        # Parse XML structure
         root = ET.fromstring(xml_string)
-
+        
         # Find all file elements
-        file_elements = root.findall('.//file')
-
-        for file_elem in file_elements:
-            file_info = {}
-            for child in file_elem:
-                if child.tag == 'code':
-                    file_info[child.tag] = child.text.strip() if child.text else ""
-                else:
-                    file_info[child.tag] = child.text.strip() if child.text else ""
+        for file_elem in root.findall('.//file'):
+            file_info = {
+                'path': '',
+                'action': '',
+                'description': '',
+                'code': ''
+            }
+            
+            # Extract each field
+            path_elem = file_elem.find('path')
+            action_elem = file_elem.find('action')
+            desc_elem = file_elem.find('description')
+            code_elem = file_elem.find('code')
+            
+            if path_elem is not None and path_elem.text:
+                file_info['path'] = path_elem.text.strip()
+            if action_elem is not None and action_elem.text:
+                file_info['action'] = action_elem.text.strip()
+            if desc_elem is not None and desc_elem.text:
+                file_info['description'] = desc_elem.text.strip()
+            if code_elem is not None and code_elem.text:
+                file_info['code'] = code_elem.text.strip()
+                
             result.append(file_info)
     except ET.ParseError as e:
         print(f"Warning: Error parsing XML, attempting manual extraction: {str(e)}", file=sys.stderr)
-        # If parsing fails, try to extract information manually
-        file_blocks = re.findall(r'<file>.*?</file>', xml_string, re.DOTALL)
+        # Manual extraction as fallback
+        file_blocks = re.findall(r'<file>\s*(.*?)\s*</file>', xml_string, re.DOTALL)
         for block in file_blocks:
-            file_info = {}
+            file_info = {
+                'path': '',
+                'action': '',
+                'description': '',
+                'code': ''
+            }
+            
+            # Extract each field with proper whitespace handling
             for tag in ['path', 'action', 'description', 'code']:
-                match = re.search(f'<{tag}>(.*?)</{tag}>', block, re.DOTALL)
+                match = re.search(f'<{tag}>\s*(.*?)\s*</{tag}>', block, re.DOTALL)
                 if match:
                     file_info[tag] = match.group(1).strip()
-            if file_info:
+            
+            if any(file_info.values()):  # Only add if at least one field has content
                 result.append(file_info)
             else:
                 print(f"Warning: Unable to extract information from block: {block[:100]}...", file=sys.stderr)

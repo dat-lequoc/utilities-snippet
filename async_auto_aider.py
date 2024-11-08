@@ -113,7 +113,7 @@ def parse_arguments():
     parser.add_argument('aider_args', nargs=argparse.REMAINDER, help="Arguments to pass to aider command")
     return parser.parse_args()
 
-def get_input(input_file=None):
+def get_input(input_file=None, args=None):
     if input_file:
         try:
             with open(input_file, 'r') as file:
@@ -122,7 +122,23 @@ def get_input(input_file=None):
             print(f"Error reading input file: {e}", file=sys.stderr)
             sys.exit(1)
     else:
-        print("Using ... model")
+        model = "deepseek" if not args.model else args.model
+        if args.opus:
+            model = "claude-3-opus"
+        elif args.sonnet:
+            model = "claude-3-sonnet"
+        elif getattr(args, '4'):
+            model = "gpt-4"
+        elif args.__dict__['4o']:
+            model = "gpt-4o"
+        elif args.mini:
+            model = "gpt-4o-mini"
+        elif args.__dict__['4_turbo']:
+            model = "gpt-4-turbo"
+        elif args.deepseek:
+            model = "deepseek"
+            
+        print(f"Using {model} model")
         print("Please paste your text below. When finished, press Ctrl+D (Unix) or Ctrl+Z (Windows) followed by Enter:")
         return sys.stdin.read().strip()
 
@@ -340,7 +356,7 @@ async def main():
     else:
         aider_args += ' --no-auto-commits'
 
-    text = get_input(args.input)
+    text = get_input(args.input, args)
 
     tasks = extract_tasks(text, args.use_json)
     if not tasks:

@@ -1,6 +1,16 @@
 import argparse
 from openai import OpenAI
 
+SYSTEM_PROMPT = """You are an expert code editor. Your task is to merge all changes from the update snippet into the provided code, ensuring every modification is fully integrated.
+
+Instructions:
+- Preserve the code's structure, order, comments, and indentation exactly
+- Only output the complete updated code
+- Do not include any additional text, explanations, placeholders, or code fences
+- Do not wrap the output in any tags
+
+The update snippet describes the changes to make. The code that follows is the content to update."""
+
 def parse_args():
     parser = argparse.ArgumentParser(description='Update code file using OpenAI API')
     parser.add_argument('file_path', help='Path to the file to be updated')
@@ -37,21 +47,17 @@ def update_file_content(file_path):
         update_snippet = get_update_snippet()
         
         completion = client.chat.completions.create(
-            model="gpt-4o",
+            model="gpt-4",
             messages=[
                 {
-                    "role": "user",
-                    "content": update_snippet
+                    "role": "system",
+                    "content": SYSTEM_PROMPT
                 },
                 {
-                    "role": "user",
-                    "content": code
+                    "role": "user", 
+                    "content": f"Update instructions:\n{update_snippet}\n\nCode to update:\n{code}"
                 }
-            ],
-            prediction={
-                "type": "content",
-                "content": code
-            }
+            ]
         )
 
         # Get the modified content

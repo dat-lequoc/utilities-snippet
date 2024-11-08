@@ -224,7 +224,7 @@ def format_task(task):
             formatted_task += "No code provided.\n"
     return formatted_task
 
-async def run_task(i, task, model_flag, aider_args, args, total_tasks, results, timeout_event):
+async def run_task(i, task, model_flag, aider_args, args, total_tasks, results, timeout_event, aider_files, update_code_files):
     if timeout_event.is_set():
         return  # Skip execution if timeout has occurred
 
@@ -444,7 +444,7 @@ async def main():
     task_coroutines = []
     for i, task in enumerate(selected_tasks):
         task_coroutines.append(
-            run_task(i, task, model_flag, aider_args, args, total_tasks, results, timeout_event)
+            run_task(i, task, model_flag, aider_args, args, total_tasks, results, timeout_event, aider_files, update_code_files)
         )
 
     # Set the timeout

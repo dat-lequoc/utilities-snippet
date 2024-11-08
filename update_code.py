@@ -5,14 +5,14 @@ SYSTEM_PROMPT = """You are an coding assistant that helps merge code updates, en
 
 USER_PROMPT = """Merge all changes from the <update> snippet into the <code> below.
 - Preserve the code's structure, order, comments, and indentation exactly.
-- Output only the updated code.
+- Output only the raw updated code without any wrapping tags or markup
 - Do not include any additional text, explanations, placeholders, ellipses, or code fences.
 
 <code>{}</code>
 
 <update>{}</update>
 
-Provide the complete updated code."""
+Provide the complete updated code without any wrapping tags."""
 
 def parse_args():
     parser = argparse.ArgumentParser(description='Update code file using OpenAI API')

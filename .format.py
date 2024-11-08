@@ -324,7 +324,23 @@ def process_tag(match):
     if tag.startswith('code-'):
         # Process code tags as before
         command_lines = content.strip().splitlines()
-        command_cleaned = ' '.join(line.strip() for line in command_lines if line.strip())
+        
+        # Extract excluded paths and filter command lines
+        excluded_paths = []
+        filtered_lines = []
+        for line in command_lines:
+            line = line.strip()
+            if line.startswith('--'):
+                excluded_paths.append(line[2:])  # Remove -- prefix
+            elif line:
+                filtered_lines.append(line)
+        
+        # Add excluded paths to command if it's files-to-prompt
+        if 'files-to-prompt' in filtered_lines[0]:
+            excluded_args = ' '.join(f'--exclude {path}' for path in excluded_paths)
+            command_cleaned = ' '.join(filtered_lines) + ' ' + excluded_args
+        else:
+            command_cleaned = ' '.join(filtered_lines)
         
         print(f"Processing <{tag}> with command: {command_cleaned}")
         

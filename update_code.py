@@ -1,5 +1,6 @@
 import argparse
 import time
+import difflib
 from openai import OpenAI
 
 SYSTEM_PROMPT = """You are an coding assistant that helps merge code updates, ensuring every modification is fully integrated."""
@@ -37,6 +38,16 @@ def get_update_snippet():
         print("-" * 40)
         print("Processing...")
         return "\n".join(lines)
+
+def count_line_changes(old_content, new_content):
+    old_lines = old_content.splitlines()
+    new_lines = new_content.splitlines()
+    
+    diff = list(difflib.unified_diff(old_lines, new_lines, n=0))
+    additions = sum(1 for line in diff if line.startswith('+') and not line.startswith('+++'))
+    deletions = sum(1 for line in diff if line.startswith('-') and not line.startswith('---'))
+    
+    return additions, deletions
 
 def update_file_content(file_path, debug=False, model_args=None):
     # Read the input file
@@ -100,8 +111,12 @@ def update_file_content(file_path, debug=False, model_args=None):
         completion_tokens = completion.usage.completion_tokens
         throughput = completion_tokens / elapsed_time
         
+        # Count line changes
+        additions, deletions = count_line_changes(code, new_content)
+        
         model_name = "GPT-4o" if args.gpt4o else "GPT-4o-mini"
         print(f"Successfully updated {file_path} using {model_name}")
+        print(f"Lines changed: +{additions} -{deletions}")
         print(f"Throughput: {throughput:.2f} tokens/second ({completion_tokens} tokens in {elapsed_time:.2f}s)")
 
     except Exception as e:

@@ -337,7 +337,7 @@ def process_tag(match):
         
         # Add excluded paths to command if it's files-to-prompt
         if 'files-to-prompt' in filtered_lines[0]:
-            excluded_args = ' '.join(f'--exclude {path}' for path in excluded_paths)
+            excluded_args = ' '.join(f'--ignore {path}' for path in excluded_paths)
             command_cleaned = ' '.join(filtered_lines) + ' ' + excluded_args
         else:
             command_cleaned = ' '.join(filtered_lines)

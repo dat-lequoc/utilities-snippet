@@ -50,7 +50,7 @@ def update_file_content(file_path):
         update_snippet = get_update_snippet()
         
         completion = client.chat.completions.create(
-            model="gpt-4",
+            model="gpt-4o",
             messages=[
                 {
                     "role": "system",

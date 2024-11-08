@@ -28,6 +28,8 @@ def get_update_snippet():
             line = input()
             lines.append(line)
     except EOFError:
+        print("-" * 40)
+        print("Processing...")
         return "\n".join(lines)
 
 def update_file_content(file_path, debug=False):

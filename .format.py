@@ -17,7 +17,7 @@ def parse_arguments():
     parser.add_argument('-r', '--recursive', action='store_true', help='Recursively list files when initializing')
     parser.add_argument('--exclude', nargs='+', default=[
         '.log', '.xml', '.gitignore', '.env', '.json', 'archives', 'data', '.DS_Store',
-        '*aider', '*git*', '.ipynb', '__pycache__', '*cache', '.db', '.swp', '.zip', 'repo', '__init__.py',
+        '.aider*', '*git*', '.ipynb', '__pycache__', '*cache', '.db', '.swp', '.zip', 'repo', '__init__.py',
         '.jsonl', '.parquet', '.safetensors', '.csv'
         ], help='List of files or extensions to exclude')
     parser.add_argument('--exclude-folders', nargs='+', default=[], help='List of folders to exclude when using recursive option')

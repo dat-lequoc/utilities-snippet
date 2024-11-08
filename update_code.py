@@ -1,4 +1,5 @@
 import argparse
+import time
 from openai import OpenAI
 
 SYSTEM_PROMPT = """You are an coding assistant that helps merge code updates, ensuring every modification is fully integrated."""
@@ -60,6 +61,8 @@ def update_file_content(file_path, debug=False):
             print(f"Received update snippet ({len(update_snippet)} characters)")
             print("Making API call to OpenAI...")
         
+        start_time = time.time()
+        
         completion = client.chat.completions.create(
             model="gpt-4o",
             messages=[
@@ -87,7 +90,13 @@ def update_file_content(file_path, debug=False):
         with open(file_path, 'w') as file:
             file.write(new_content)
         
+        end_time = time.time()
+        elapsed_time = end_time - start_time
+        completion_tokens = completion.usage.completion_tokens
+        throughput = completion_tokens / elapsed_time
+        
         print(f"Successfully updated {file_path}")
+        print(f"Throughput: {throughput:.2f} tokens/second ({completion_tokens} tokens in {elapsed_time:.2f}s)")
 
     except Exception as e:
         print(f"Error during API call or file writing: {e}")

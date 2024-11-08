@@ -10,8 +10,8 @@ from typing import List, Dict, Any
 import asyncio
 import shutil  # Added for cleaning log directory
 
-# Import the perform_update function from update_code.py
-from update_code import perform_update
+# Import the update_file_content function from update_code.py
+from update_code import update_file_content
 
 def parse_fault_tolerant_xml(xml_string: str) -> List[Dict[str, Any]]:
     # Normalize line endings and clean whitespace
@@ -274,13 +274,21 @@ async def run_task(i, task, model_flag, aider_args, args, total_tasks, results, 
                 return  # Skip to the next task after deletion
 
             elif action == "update":
-                # Use the perform_update function from update_code.py
-                update_success = perform_update(
-                    file_path=file_path,
-                    message=task.get('description', ''),
-                    debug=args.auto_commits,  # Assuming debug based on auto_commits; adjust as needed
-                    model_choice='gpt4o' if '--gpt4o' in aider_args else 'mini'  # Adjust based on aider_args
-                )
+                # Use the update_file_content function from update_code.py
+                try:
+                    update_file_content(
+                        file_path=file_path,
+                        debug=args.auto_commits,  # Using auto_commits as debug flag
+                        model_args=argparse.Namespace(
+                            gpt4o='--gpt4o' in aider_args,
+                            mini='--gpt4o' not in aider_args,
+                            message=task.get('description', '')
+                        )
+                    )
+                    update_success = True
+                except Exception as e:
+                    print(f"Error during update: {e}")
+                    update_success = False
                 update_code_files.add(file_path)
                 if update_success:
                     success_message = f"Task {original_task_number} (update) executed successfully."

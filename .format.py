@@ -3,6 +3,7 @@ import re
 import pyperclip
 import argparse
 import os
+from datetime import datetime
 import requests
 from bs4 import BeautifulSoup
 from pathspec import PathSpec
@@ -23,6 +24,7 @@ def parse_arguments():
     parser.add_argument('--exclude-folders', nargs='+', default=[], help='List of folders to exclude when using recursive option')
     parser.add_argument('-s', '--structure', type=int, nargs='?', const=2, metavar='DEPTH', help='Include project structure with specified depth')
     parser.add_argument('--on', action='store_true', help='Do not use XML comments for files in code-files section when initializing')
+    parser.add_argument('-a', '--archive', action='store_true', help='Save a copy to prompts/prompt.date_time.xml')
     return parser.parse_args()
 
 args = parse_arguments()
@@ -387,6 +389,18 @@ try:
     with open(output_filename, 'w') as outfile:
         outfile.write(new_content)
     print(f"Modified content has been saved to '{output_filename}'.")
+
+    # Archive the prompt if requested
+    if args.archive:
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        archive_dir = "prompts"
+        if not os.path.exists(archive_dir):
+            os.makedirs(archive_dir)
+        archive_path = os.path.join(archive_dir, f"prompt.{timestamp}.xml")
+        with open(archive_path, 'w') as archive_file:
+            archive_file.write(new_content)
+        print(f"Archived copy saved to '{archive_path}'")
+
 except Exception as e:
     print(f"Error writing to '{output_filename}': {e}")
     exit(1)

@@ -106,7 +106,7 @@ if args.init is not None:
 <!--
 <instructions>
     - Provide code for each new or updated file in a single block. Only include the updated parts
-    of the code in your response.
+    of the code in your response. Use "# ... existing code ..." to skip unchanged parts.
     - Maintain the existing file names unless a change is necessary for better clarity or
     structure. Respect the currently used libraries to avoid introducing unnecessary
     dependencies.
@@ -193,7 +193,7 @@ if not os.path.exists(input_filename):
 <instructions>
   <instruction>
     Provide code for each new or updated file in a single block. Only include the updated parts
-    of the code in your response.
+    of the code in your response. Use "# ... existing code ..." to skip unchanged parts.
   </instruction>
   <instruction>
     Maintain the existing file names unless a change is necessary for better clarity or

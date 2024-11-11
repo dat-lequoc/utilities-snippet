@@ -400,6 +400,7 @@ try:
         with open(archive_path, 'w') as archive_file:
             archive_file.write(new_content)
         print(f"Archived copy saved to '{archive_path}'")
+        print("Exiting after archive - no further actions will be taken")
         exit(0)  # Exit after archiving
 
 except Exception as e:

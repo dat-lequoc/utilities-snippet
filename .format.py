@@ -397,9 +397,9 @@ try:
         if not os.path.exists(archive_dir):
             os.makedirs(archive_dir)
         archive_path = os.path.join(archive_dir, f"prompt.{timestamp}.xml")
-        with open(archive_path, 'w') as archive_file:
-            archive_file.write(new_content)
-        print(f"Archived copy saved to '{archive_path}'")
+        import shutil
+        shutil.copy2(output_filename, archive_path)
+        print(f"Archived output file saved to '{archive_path}'")
         print("Exiting after archive - no further actions will be taken")
         exit(0)  # Exit after archiving
 

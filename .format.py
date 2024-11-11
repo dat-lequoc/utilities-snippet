@@ -400,6 +400,7 @@ try:
         with open(archive_path, 'w') as archive_file:
             archive_file.write(new_content)
         print(f"Archived copy saved to '{archive_path}'")
+        exit(0)  # Exit after archiving
 
 except Exception as e:
     print(f"Error writing to '{output_filename}': {e}")

@@ -24,7 +24,7 @@ def parse_arguments():
     parser.add_argument('--exclude-folders', nargs='+', default=[], help='List of folders to exclude when using recursive option')
     parser.add_argument('-s', '--structure', type=int, nargs='?', const=2, metavar='DEPTH', help='Include project structure with specified depth')
     parser.add_argument('--on', action='store_true', help='Do not use XML comments for files in code-files section when initializing')
-    parser.add_argument('-a', '--archive', action='store_true', help='Save a copy to prompts/prompt.date_time.xml')
+    parser.add_argument('-a', '--archive', nargs='?', const='', help='Save a copy to prompts/prompt.date_time[_note].xml. Optionally add a note.')
     return parser.parse_args()
 
 args = parse_arguments()
@@ -396,7 +396,10 @@ try:
         archive_dir = "prompts"
         if not os.path.exists(archive_dir):
             os.makedirs(archive_dir)
-        archive_path = os.path.join(archive_dir, f"prompt.{timestamp}.xml")
+        # Process the note if provided
+        note = args.archive.strip() if args.archive else ""
+        note_suffix = f"_{note.replace(' ', '_')}" if note else ""
+        archive_path = os.path.join(archive_dir, f"prompt.{timestamp}{note_suffix}.xml")
         import shutil
         shutil.copy2(output_filename, archive_path)
         print(f"Archived output file saved to '{archive_path}'")

@@ -25,6 +25,7 @@ def parse_arguments():
     parser.add_argument('-s', '--structure', type=int, nargs='?', const=2, metavar='DEPTH', help='Include project structure with specified depth')
     parser.add_argument('--on', action='store_true', help='Do not use XML comments for files in code-files section when initializing')
     parser.add_argument('-a', '--archive', nargs='?', const='', help='Save a copy to prompts/prompt.date_time[_note].xml. Optionally add a note.')
+    parser.add_argument('-f', '--file', help='Specify the file to archive (default: .run.xml)')
     return parser.parse_args()
 
 args = parse_arguments()
@@ -401,8 +402,12 @@ try:
         note_suffix = f"__{note.replace(' ', '_')}" if note else ""
         archive_path = os.path.join(archive_dir, f"prompt.{timestamp}{note_suffix}.xml")
         import shutil
-        shutil.copy2(output_filename, archive_path)
-        print(f"Archived output file saved to '{archive_path}'")
+        source_file = args.file if args.file else output_filename
+        if not os.path.exists(source_file):
+            print(f"Error: Source file '{source_file}' does not exist")
+            exit(1)
+        shutil.copy2(source_file, archive_path)
+        print(f"Archived file '{source_file}' saved to '{archive_path}'")
         print("Exiting after archive - no further actions will be taken")
         exit(0)  # Exit after archiving
 

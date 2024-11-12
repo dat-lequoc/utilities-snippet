@@ -398,7 +398,7 @@ try:
             os.makedirs(archive_dir)
         # Process the note if provided
         note = args.archive.strip() if args.archive else ""
-        note_suffix = f"_{note.replace(' ', '_')}" if note else ""
+        note_suffix = f"__{note.replace(' ', '_')}" if note else ""
         archive_path = os.path.join(archive_dir, f"prompt.{timestamp}{note_suffix}.xml")
         import shutil
         shutil.copy2(output_filename, archive_path)

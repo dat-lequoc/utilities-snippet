@@ -402,7 +402,7 @@ try:
         note_suffix = f"__{note.replace(' ', '_')}" if note else ""
         archive_path = os.path.join(archive_dir, f"prompt.{timestamp}{note_suffix}.xml")
         import shutil
-        source_file = args.file if args.file else output_filename
+        source_file = args.file if args.file else '.run.xml'
         if not os.path.exists(source_file):
             print(f"Error: Source file '{source_file}' does not exist")
             exit(1)

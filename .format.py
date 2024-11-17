@@ -40,7 +40,7 @@ if args.init is not None:
 
     def should_exclude(item, is_dir=False):
         if is_dir:
-            return any(folder == item for folder in args.exclude_folders)
+            return item == '.git' or any(folder == item for folder in args.exclude_folders)
         return any(
             (exclude.startswith('.') and item.endswith(exclude)) or
             (exclude.startswith('*') and exclude.endswith('*') and exclude[1:-1] in item) or

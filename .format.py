@@ -68,10 +68,10 @@ if args.init is not None:
                 # First yield the current directory if it's not the root
                 if root != directory:
                     relative_dir = os.path.relpath(root, directory)
-                    if not should_exclude(relative_dir, is_dir=True) and not is_ignored(relative_dir):
+                    if not should_exclude(relative_dir, is_dir=True) and not is_ignored(relative_dir) and not any(pattern in relative_dir for pattern in args.exclude):
                         yield f"{relative_dir}/"
 
-                dirs[:] = [d for d in dirs if not should_exclude(d, is_dir=True) and not is_ignored(os.path.join(root, d))]
+                dirs[:] = [d for d in dirs if not should_exclude(d, is_dir=True) and not is_ignored(os.path.join(root, d)) and not any(pattern in d for pattern in args.exclude)]
                 for file in files:
                     full_path = os.path.join(root, file)
                     relative_path = os.path.relpath(full_path, directory)

@@ -84,7 +84,7 @@ if args.init is not None:
             for item in os.listdir(directory):
                 full_path = os.path.join(directory, item)
                 is_dir = os.path.isdir(full_path)
-                if not should_exclude(item, is_dir) and not is_ignored(item):
+                if not should_exclude(item, is_dir) and not is_ignored(item) and not any(pattern in item for pattern in args.exclude):
                     if is_dir:
                         dirs.append(f"{item}/")
                     else:

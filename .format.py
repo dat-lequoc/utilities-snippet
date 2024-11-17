@@ -65,6 +65,12 @@ if args.init is not None:
 
         if recursive:
             for root, dirs, files in os.walk(directory):
+                # First yield the current directory if it's not the root
+                if root != directory:
+                    relative_dir = os.path.relpath(root, directory)
+                    if not should_exclude(relative_dir, is_dir=True) and not is_ignored(relative_dir):
+                        yield f"{relative_dir}/"
+
                 dirs[:] = [d for d in dirs if not should_exclude(d, is_dir=True) and not is_ignored(os.path.join(root, d))]
                 for file in files:
                     full_path = os.path.join(root, file)
@@ -72,14 +78,23 @@ if args.init is not None:
                     if not should_exclude(relative_path) and not is_ignored(relative_path):
                         yield relative_path
         else:
+            # First yield directories
+            dirs = []
+            files = []
             for item in os.listdir(directory):
                 full_path = os.path.join(directory, item)
                 is_dir = os.path.isdir(full_path)
                 if not should_exclude(item, is_dir) and not is_ignored(item):
-                    if os.path.isfile(full_path):
-                        yield item
-                    elif is_dir:
-                        yield f"{item}/"
+                    if is_dir:
+                        dirs.append(f"{item}/")
+                    else:
+                        files.append(item)
+            
+            # Yield directories first, then files
+            for d in sorted(dirs):
+                yield d
+            for f in sorted(files):
+                yield f
 
     template = """<purpose>
 

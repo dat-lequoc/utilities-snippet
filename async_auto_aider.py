@@ -126,7 +126,7 @@ def get_input(input_file=None, args=None):
         if args.opus:
             model = "claude-3-opus"
         elif args.sonnet:
-            model = "claude-3-sonnet"
+            model = "claude-3.5-sonnet"
         elif getattr(args, '4'):
             model = "gpt-4"
         elif args.__dict__['4o']:

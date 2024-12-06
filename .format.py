@@ -18,23 +18,32 @@ def ensure_prompts_dir():
         
     # Check .gitignore
     gitignore_path = os.path.join(os.getcwd(), '.gitignore')
-    prompts_ignore = "**/.prompts/"
+    ignore_patterns = ["**/.prompts/", "**/__pycache__/"]
     
     if os.path.exists(gitignore_path):
         with open(gitignore_path, 'r') as f:
             content = f.read()
-            if prompts_ignore not in content:
-                # Add .prompts to .gitignore
+            needs_update = False
+            to_add = []
+            
+            for pattern in ignore_patterns:
+                if pattern not in content:
+                    needs_update = True
+                    to_add.append(pattern)
+            
+            if needs_update:
                 with open(gitignore_path, 'a') as f:
                     if not content.endswith('\n'):
                         f.write('\n')
-                    f.write(f"{prompts_ignore}\n")
-                print(f"Added {prompts_ignore} to .gitignore")
+                    for pattern in to_add:
+                        f.write(f"{pattern}\n")
+                        print(f"Added {pattern} to .gitignore")
     else:
-        # Create .gitignore with .prompts entry
+        # Create .gitignore with all patterns
         with open(gitignore_path, 'w') as f:
-            f.write(f"{prompts_ignore}\n")
-        print(f"Created .gitignore with {prompts_ignore}")
+            for pattern in ignore_patterns:
+                f.write(f"{pattern}\n")
+        print(f"Created .gitignore with patterns: {', '.join(ignore_patterns)}")
             
     return PROMPTS_DIR
 

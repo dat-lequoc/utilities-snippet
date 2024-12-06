@@ -187,6 +187,9 @@ if args.init is not None:
     # Replace the placeholders in the template
     template = template.format(placeholder=placeholder, structure_placeholder=structure_placeholder.strip())
     
+    # Ensure directory exists
+    os.makedirs(os.path.dirname(run_xml_path), exist_ok=True)
+    
     with open(run_xml_path, 'w') as file:
         file.write(template)
     print("Created or replaced .run.xml with default template and directory contents.")

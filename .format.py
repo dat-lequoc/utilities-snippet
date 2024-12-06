@@ -33,10 +33,12 @@ args = parse_arguments()
 # Handle the init option
 if args.init is not None:
     # Backup existing .run.xml if it exists
-    if os.path.exists('.run.xml'):
+    run_xml_path = os.path.join(prompts_dir, '.run.xml')
+    if os.path.exists(run_xml_path):
         import shutil
-        shutil.copy2('.run.xml', '.old.run.xml')
-        print("Backed up existing .run.xml to .old.run.xml")
+        old_xml_path = os.path.join(prompts_dir, '.old.run.xml')
+        shutil.copy2(run_xml_path, old_xml_path)
+        print(f"Backed up existing {run_xml_path} to {old_xml_path}")
 
     def should_exclude(item, is_dir=False):
         if is_dir:
@@ -156,7 +158,7 @@ if args.init is not None:
 
     if args.structure:
         print(args.structure)
-        structure_file = '.structure.xml'
+        structure_file = os.path.join(prompts_dir, '.structure.xml')
         if os.path.exists(structure_file):
             with open(structure_file, 'r') as f:
                 structure_content = f.read().strip()
@@ -177,21 +179,28 @@ if args.init is not None:
     # Replace the placeholders in the template
     template = template.format(placeholder=placeholder, structure_placeholder=structure_placeholder.strip())
     
-    with open('.run.xml', 'w') as file:
+    with open(run_xml_path, 'w') as file:
         file.write(template)
     print("Created or replaced .run.xml with default template and directory contents.")
     exit(0)
 
+def ensure_prompts_dir():
+    prompts_dir = os.path.join(os.getcwd(), '.prompts')
+    if not os.path.exists(prompts_dir):
+        os.makedirs(prompts_dir)
+    return prompts_dir
+
 # Define input and output filenames
+prompts_dir = ensure_prompts_dir()
 if os.path.isabs(args.input):
     input_filename = args.input
 else:
-    input_filename = os.path.join(os.getcwd(), args.input)
+    input_filename = os.path.join(prompts_dir, args.input)
 
 if os.path.isabs(args.output):
     output_filename = args.output
 else:
-    output_filename = os.path.join(os.getcwd(), args.output)
+    output_filename = os.path.join(prompts_dir, args.output)
 
 # Check if input file exists, if not, try in the script's directory
 if not os.path.exists(input_filename):
@@ -243,6 +252,7 @@ if not os.path.exists(input_filename):
   </files_content>
 </output_format> 
 """
+            os.makedirs(os.path.dirname(input_filename), exist_ok=True)
             with open(input_filename, 'w') as file:
                 file.write(template)
             print(f"Created {input_filename} with default template.")
@@ -409,7 +419,7 @@ try:
     # Archive the prompt if requested
     if args.archive:
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        archive_dir = "prompts"
+        archive_dir = os.path.join(prompts_dir, "archives")
         if not os.path.exists(archive_dir):
             os.makedirs(archive_dir)
         # Process the note if provided
@@ -417,7 +427,7 @@ try:
         note_suffix = f"__{note.replace(' ', '_')}" if note else ""
         archive_path = os.path.join(archive_dir, f"prompt.{timestamp}{note_suffix}.xml")
         import shutil
-        source_file = args.file if args.file else '.run.xml'
+        source_file = args.file if args.file else os.path.join(prompts_dir, '.run.xml')
         if not os.path.exists(source_file):
             print(f"Error: Source file '{source_file}' does not exist")
             exit(1)

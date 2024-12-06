@@ -295,7 +295,7 @@ jupyter nbconvert --to pdf tests.ipynb
 apt-get update
 apt-get install -y vim
 
-git config --global user.email "quocdat-le-insacvl@gmail.com"
+git config --global user.email "quocdat.le.insacvl@gmail.com"
 
 git config --global credential.helper store
 

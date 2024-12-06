@@ -9,6 +9,15 @@ from bs4 import BeautifulSoup
 from pathspec import PathSpec
 from pathspec.patterns import GitWildMatchPattern
 
+def ensure_prompts_dir():
+    prompts_dir = os.path.join(os.getcwd(), '.prompts')
+    if not os.path.exists(prompts_dir):
+        os.makedirs(prompts_dir)
+    return prompts_dir
+
+# Initialize prompts directory
+prompts_dir = ensure_prompts_dir()
+
 def parse_arguments():
     parser = argparse.ArgumentParser(description="Process XML files and execute code blocks.")
     parser.add_argument('-i', '--input', default='.run.xml', help='Input filename (default: .run.xml)')
@@ -32,6 +41,7 @@ args = parse_arguments()
 
 # Handle the init option
 if args.init is not None:
+    global prompts_dir
     # Backup existing .run.xml if it exists
     run_xml_path = os.path.join(prompts_dir, '.run.xml')
     if os.path.exists(run_xml_path):

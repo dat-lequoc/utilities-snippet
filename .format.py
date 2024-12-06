@@ -44,7 +44,7 @@ if args.init is not None:
     run_xml_path = os.path.join(PROMPTS_DIR, '.run.xml')
     if os.path.exists(run_xml_path):
         import shutil
-        old_xml_path = os.path.join(prompts_dir, '.old.run.xml')
+        old_xml_path = os.path.join(PROMPTS_DIR, '.old.run.xml')
         shutil.copy2(run_xml_path, old_xml_path)
         print(f"Backed up existing {run_xml_path} to {old_xml_path}")
 
@@ -166,7 +166,7 @@ if args.init is not None:
 
     if args.structure:
         print(args.structure)
-        structure_file = os.path.join(prompts_dir, '.structure.xml')
+        structure_file = os.path.join(PROMPTS_DIR, '.structure.xml')
         if os.path.exists(structure_file):
             with open(structure_file, 'r') as f:
                 structure_content = f.read().strip()
@@ -421,7 +421,7 @@ try:
     # Archive the prompt if requested
     if args.archive:
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        archive_dir = os.path.join(prompts_dir, "archives")
+        archive_dir = os.path.join(PROMPTS_DIR, "archives")
         if not os.path.exists(archive_dir):
             os.makedirs(archive_dir)
         # Process the note if provided
@@ -429,7 +429,7 @@ try:
         note_suffix = f"__{note.replace(' ', '_')}" if note else ""
         archive_path = os.path.join(archive_dir, f"prompt.{timestamp}{note_suffix}.xml")
         import shutil
-        source_file = args.file if args.file else os.path.join(prompts_dir, '.run.xml')
+        source_file = args.file if args.file else os.path.join(PROMPTS_DIR, '.run.xml')
         if not os.path.exists(source_file):
             print(f"Error: Source file '{source_file}' does not exist")
             exit(1)

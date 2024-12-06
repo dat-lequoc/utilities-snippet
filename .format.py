@@ -9,14 +9,13 @@ from bs4 import BeautifulSoup
 from pathspec import PathSpec
 from pathspec.patterns import GitWildMatchPattern
 
-def ensure_prompts_dir():
-    prompts_dir = os.path.join(os.getcwd(), '.prompts')
-    if not os.path.exists(prompts_dir):
-        os.makedirs(prompts_dir)
-    return prompts_dir
+# Initialize prompts directory path
+PROMPTS_DIR = os.path.join(os.getcwd(), '.prompts')
 
-# Initialize prompts directory
-prompts_dir = ensure_prompts_dir()
+def ensure_prompts_dir():
+    if not os.path.exists(PROMPTS_DIR):
+        os.makedirs(PROMPTS_DIR)
+    return PROMPTS_DIR
 
 def parse_arguments():
     parser = argparse.ArgumentParser(description="Process XML files and execute code blocks.")
@@ -41,9 +40,8 @@ args = parse_arguments()
 
 # Handle the init option
 if args.init is not None:
-    global prompts_dir
     # Backup existing .run.xml if it exists
-    run_xml_path = os.path.join(prompts_dir, '.run.xml')
+    run_xml_path = os.path.join(PROMPTS_DIR, '.run.xml')
     if os.path.exists(run_xml_path):
         import shutil
         old_xml_path = os.path.join(prompts_dir, '.old.run.xml')
@@ -194,23 +192,17 @@ if args.init is not None:
     print("Created or replaced .run.xml with default template and directory contents.")
     exit(0)
 
-def ensure_prompts_dir():
-    prompts_dir = os.path.join(os.getcwd(), '.prompts')
-    if not os.path.exists(prompts_dir):
-        os.makedirs(prompts_dir)
-    return prompts_dir
-
 # Define input and output filenames
-prompts_dir = ensure_prompts_dir()
+ensure_prompts_dir()
 if os.path.isabs(args.input):
     input_filename = args.input
 else:
-    input_filename = os.path.join(prompts_dir, args.input)
+    input_filename = os.path.join(PROMPTS_DIR, args.input)
 
 if os.path.isabs(args.output):
     output_filename = args.output
 else:
-    output_filename = os.path.join(prompts_dir, args.output)
+    output_filename = os.path.join(PROMPTS_DIR, args.output)
 
 # Check if input file exists, if not, try in the script's directory
 if not os.path.exists(input_filename):

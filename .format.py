@@ -15,6 +15,27 @@ PROMPTS_DIR = os.path.join(os.getcwd(), '.prompts')
 def ensure_prompts_dir():
     if not os.path.exists(PROMPTS_DIR):
         os.makedirs(PROMPTS_DIR)
+        
+    # Check .gitignore
+    gitignore_path = os.path.join(os.getcwd(), '.gitignore')
+    prompts_ignore = "**/.prompts/"
+    
+    if os.path.exists(gitignore_path):
+        with open(gitignore_path, 'r') as f:
+            content = f.read()
+            if prompts_ignore not in content:
+                # Add .prompts to .gitignore
+                with open(gitignore_path, 'a') as f:
+                    if not content.endswith('\n'):
+                        f.write('\n')
+                    f.write(f"{prompts_ignore}\n")
+                print(f"Added {prompts_ignore} to .gitignore")
+    else:
+        # Create .gitignore with .prompts entry
+        with open(gitignore_path, 'w') as f:
+            f.write(f"{prompts_ignore}\n")
+        print(f"Created .gitignore with {prompts_ignore}")
+            
     return PROMPTS_DIR
 
 def parse_arguments():

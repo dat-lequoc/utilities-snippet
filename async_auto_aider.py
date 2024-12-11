@@ -253,7 +253,7 @@ async def run_task(i, task, model_flag, aider_args, args, total_tasks, results, 
         task_result['code_missing'] = True
 
     # Prepare the log file
-    log_folder = 'log'
+    log_folder = os.path.join('.prompts', 'log')
     os.makedirs(log_folder, exist_ok=True)
     log_file = os.path.join(log_folder, f'task_{original_task_number}.log')
 
@@ -366,9 +366,9 @@ async def main():
     model_flag = get_model_flag(args)
 
     # Assign IDs to tasks and save to tasks.json
-    log_folder = 'log'
+    log_folder = os.path.join('.prompts', 'log')
     
-    # Clean log/* before running
+    # Clean .prompts/log/* before running
     if os.path.exists(log_folder):
         try:
             shutil.rmtree(log_folder)

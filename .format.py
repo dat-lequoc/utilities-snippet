@@ -2,6 +2,7 @@ import subprocess
 import re
 import pyperclip
 import argparse
+import tiktoken
 import os
 from datetime import datetime
 import requests
@@ -481,3 +482,11 @@ try:
     print("Modified content copied to clipboard.")
 except pyperclip.PyperclipException as e:
     print(f"Error copying to clipboard: {e}")
+
+# Count tokens in the output file
+try:
+    enc = tiktoken.get_encoding("cl100k_base")
+    token_count = len(enc.encode(new_content))
+    print(f"Token count in output file: {token_count}")
+except Exception as e:
+    print(f"Error counting tokens: {e}")

@@ -25,6 +25,8 @@ random snippets
 # Git snippets
 --------------
 ```
+git config --global user.name "LE Quoc Dat"
+git config --global user.email "quocdat.le.insacvl@gmail.com"
 git config --global credential.helper store
 ```
 

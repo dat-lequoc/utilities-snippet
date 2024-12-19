@@ -313,6 +313,9 @@ huggingface-cli login --token $HUGGINGFACE_TOKEN --add-to-git-credential
 
 git clone https://github.com/kortix-ai/fast-apply
 git clone https://github.com/kortix-ai/mirko
+
+pip install unsloth
+pip uninstall unsloth -y && pip install --upgrade --no-cache-dir "unsloth[colab-new] @ git+https://github.com/unslothai/unsloth.git"
 ```
 
 # Download and save HF model

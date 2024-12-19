@@ -308,6 +308,7 @@ pip install huggingface_hub
 
 export HUGGINGFACE_TOKEN=...
 export GITHUB_TOKEN=...
+export HF_HOME="/workspace/.cache/huggingface"
 
 huggingface-cli login --token $HUGGINGFACE_TOKEN --add-to-git-credential
 

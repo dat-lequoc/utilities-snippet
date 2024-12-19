@@ -307,8 +307,12 @@ pip install huggingface_hub
 # wandb
 
 export HUGGINGFACE_TOKEN=...
+export GITHUB_TOKEN=...
 
 huggingface-cli login --token $HUGGINGFACE_TOKEN --add-to-git-credential
+
+git clone https://github.com/kortix-ai/fast-apply
+git clone https://github.com/kortix-ai/mirko
 ```
 
 # Download and save HF model

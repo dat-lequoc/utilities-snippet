@@ -298,7 +298,7 @@ apt-get update
 apt-get install -y vim
 
 git config --global user.email "quocdat.le.insacvl@gmail.com"
-
+git config --global user.name "LE Quoc Dat"
 git config --global credential.helper store
 
 git clone https://quocdat-le-insacvl:<token>@github.com/quocdat-le-insacvl/fast-apply-model.git

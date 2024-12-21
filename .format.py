@@ -463,12 +463,21 @@ try:
         note_suffix = f"__{note.replace(' ', '_')}" if note else ""
         archive_path = os.path.join(archive_dir, f"prompt.{timestamp}{note_suffix}.xml")
         import shutil
+        # Archive specified file or .run.xml
         source_file = args.file if args.file else os.path.join(PROMPTS_DIR, '.run.xml')
         if not os.path.exists(source_file):
             print(f"Error: Source file '{source_file}' does not exist")
             exit(1)
         shutil.copy2(source_file, archive_path)
         print(f"Archived file '{source_file}' saved to '{archive_path}'")
+        
+        # Also archive .out.xml if it exists
+        out_xml = os.path.join(PROMPTS_DIR, '.out.xml')
+        if os.path.exists(out_xml):
+            out_archive_path = os.path.join(archive_dir, f"prompt_out.{timestamp}{note_suffix}.xml")
+            shutil.copy2(out_xml, out_archive_path)
+            print(f"Archived output file '{out_xml}' saved to '{out_archive_path}'")
+            
         print("Exiting after archive - no further actions will be taken")
         exit(0)  # Exit after archiving
 

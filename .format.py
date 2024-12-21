@@ -474,7 +474,7 @@ try:
         # Also archive .out.xml if it exists
         out_xml = os.path.join(PROMPTS_DIR, '.out.xml')
         if os.path.exists(out_xml):
-            out_archive_path = os.path.join(archive_dir, f"prompt_out.{timestamp}{note_suffix}.xml")
+            out_archive_path = os.path.join(archive_dir, f"prompt.{timestamp}{note_suffix}.out.xml")
             shutil.copy2(out_xml, out_archive_path)
             print(f"Archived output file '{out_xml}' saved to '{out_archive_path}'")
             

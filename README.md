@@ -25,6 +25,8 @@ random snippets
 # Git snippets
 --------------
 ```
+git config --global user.name "LE Quoc Dat"
+git config --global user.email "quocdat.le.insacvl@gmail.com"
 git config --global credential.helper store
 ```
 
@@ -296,7 +298,7 @@ apt-get update
 apt-get install -y vim
 
 git config --global user.email "quocdat.le.insacvl@gmail.com"
-
+git config --global user.name "LE Quoc Dat"
 git config --global credential.helper store
 
 git clone https://quocdat-le-insacvl:<token>@github.com/quocdat-le-insacvl/fast-apply-model.git
@@ -305,8 +307,16 @@ pip install huggingface_hub
 # wandb
 
 export HUGGINGFACE_TOKEN=...
+export GITHUB_TOKEN=...
+export HF_HOME="/workspace/.cache/huggingface"
 
 huggingface-cli login --token $HUGGINGFACE_TOKEN --add-to-git-credential
+
+git clone https://github.com/kortix-ai/fast-apply
+git clone https://github.com/kortix-ai/mirko
+
+pip install unsloth
+pip uninstall unsloth -y && pip install --upgrade --no-cache-dir "unsloth[colab-new] @ git+https://github.com/unslothai/unsloth.git"
 ```
 
 # Download and save HF model
@@ -318,3 +328,55 @@ tokenizer = AutoTokenizer.from_pretrained(model_name)
 model.save_pretrained(model_name)
 tokenizer.save_pretrained(model_name)
 ```
+
+# Docker
+## Install
+```
+sudo apt update
+sudo apt upgrade -y
+sudo apt install -y apt-transport-https ca-certificates curl software-properties-common
+curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg
+echo "deb [arch=amd64 signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+sudo apt update
+sudo apt install -y docker-ce docker-ce-cli containerd.io
+sudo systemctl enable docker
+docker --version
+```
+
+## Move default root dir Docker to /mnt/volume 
+```
+# Set your new location here
+NEW_DOCKER_PATH="/mnt/HC_Volume_101776654" 
+
+
+# Stop Docker service
+sudo systemctl stop docker
+sudo systemctl stop docker.socket
+
+# Create new directory
+sudo mkdir -p $NEW_DOCKER_PATH
+
+# Copy data to new location
+sudo rsync -aP /var/lib/docker/ $NEW_DOCKER_PATH/
+
+# Backup old directory
+sudo mv /var/lib/docker /var/lib/docker.old
+
+# Create/modify daemon.json
+sudo mkdir -p /etc/docker
+sudo bash -c "cat > /etc/docker/daemon.json << EOL
+{
+    \"data-root\": \"$NEW_DOCKER_PATH\"
+}
+EOL"
+
+# Start Docker service
+sudo systemctl start docker
+sudo systemctl start docker.socket
+
+# Optional: Remove old directory after confirming everything works
+sudo rm -rf /var/lib/docker.old
+
+docker info | grep "Docker Root Dir"
+```
+

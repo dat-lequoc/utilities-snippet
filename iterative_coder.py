@@ -18,27 +18,18 @@ Focus on user experience, functionality, and efficiency, but prioritize changes 
     
     "bug_fix": """
 Analyze the codebase for potential issues, bugs, or areas of improvement.  
-Look for edge cases, error handling gaps, security vulnerabilities, or performance inefficiencies.  
 Propose and implement fixes that are minimal yet effective, ensuring the code remains robust and reliable.  
 Focus on stability and correctness while maintaining the existing functionality.  
 """,
-    
-    "refactor": """
-Examine the codebase for opportunities to improve its structure, readability, and maintainability.  
-Identify areas where code can be simplified, reused, or organized more effectively.  
-Implement refactoring changes that make the code cleaner and easier to work with, without altering its core behavior.  
-Focus on reducing redundancy, improving modularity, and applying design patterns where appropriate.  
-""",
 }
 
-# Common prompt suffix added to all prompts
 COMMON_SUFFIX = """
-General guidelines:  
-- Make incremental changes that build on the existing codebase.  
-- Prioritize clarity, efficiency, and maintainability.  
-- Implement changes autonomously without seeking user input.  
-- Ensure each change is self-contained and adds value to the codebase.  
-- Write compact, dense code, without comments.
+Approach guidelines:
+- Make precise, self-contained improvements
+- Preserve existing functionality while adding value
+- Implement changes autonomously and confidently
+- Keep code dense compact and focused, without comments.
+- Work within the current file structure, do not create new files.
 """
 
 async def run_aider_command(file_path: str, prompt: str, iteration: int, prompt_type: str) -> bool:

@@ -12,3 +12,4 @@
 .aider*
 .env
 *.xml
+**/.prompts/

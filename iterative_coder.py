@@ -3,55 +3,42 @@ import subprocess
 import shlex
 import sys
 import os
+import json
 import argparse
 from typing import List, Dict
 from datetime import datetime
 
-# Predefined prompts for different improvement aspects
-PROMPTS = {
-    "enhance": """
-Explore the codebase and identify opportunities to add value through new features or improvements to existing functionality.  
-Think creatively about how to make the code more useful, intuitive, or powerful.  
-Implement small, incremental changes that align with the code's purpose and enhance its overall quality.  
-Focus on user experience, functionality, and efficiency, but prioritize changes that are easy to integrate and maintain.  
-""",
-    
-    "bug_fix": """
-Analyze the codebase for potential issues, bugs, or areas of improvement.  
-Propose and implement fixes that are minimal yet effective, ensuring the code remains robust and reliable.  
-Focus on stability and correctness while maintaining the existing functionality.  
-""",
-}
-
-COMMON_SUFFIX = """
-Approach guidelines:
-- Make precise, self-contained improvements
-- Preserve existing functionality while adding value
-- Implement changes autonomously and confidently
-- Keep code dense compact and focused, without comments.
-- Work within the current file structure, do not create new files.
+# Predefined prompt for requirements implementation
+PROMPT = """
+Review the REQUIREMENTS and implement the necessary changes while following the guidelines.
 """
 
-async def run_aider_command(file_path: str, prompt: str, iteration: int, prompt_type: str) -> bool:
-    """Run aider command with the given prompt and file."""
+async def run_aider_command(files_config: Dict[str, List[str]], prompt: str, iteration: int, prompt_type: str) -> bool:
+    """Run aider command with the given prompt and files configuration."""
     log_folder = os.path.join('.prompts', 'log', f'iteration_{iteration}')
     os.makedirs(log_folder, exist_ok=True)
     
     log_file = os.path.join(log_folder, f'{prompt_type}_{datetime.now().strftime("%Y%m%d_%H%M%S")}.log')
     
-    # Combine prompt with common suffix
-    full_prompt = f"{prompt}\n{COMMON_SUFFIX}"
-    
     # Build base command with common options
-    command = (
-        f'python -m aider '
-        f'--yes '
-        f'--model deepseek/deepseek-chat '
-        f'{"--auto-commits" if args.auto_commits else "--no-auto-commits"} '
-        f'--no-suggest-shell-commands '
-        f'--message {shlex.quote(full_prompt)} '
-        f'{shlex.quote(file_path)}'
-    )
+    command = [
+        'python -m aider',
+        '--yes',
+        '--model deepseek/deepseek-chat',
+        '--auto-commits' if args.auto_commits else '--no-auto-commits',
+        '--no-suggest-shell-commands',
+        f'--message {shlex.quote(prompt)}'
+    ]
+    
+    # Add read-only files
+    for read_only_file in files_config.get('read_only', []):
+        command.append(f'--read {shlex.quote(read_only_file)}')
+    
+    # Add project files
+    command.extend(shlex.quote(file) for file in files_config.get('project_files', []))
+    
+    # Join command parts
+    command = ' '.join(command)
     
     try:
         with open(log_file, 'w') as log_fh:
@@ -80,49 +67,38 @@ async def run_aider_command(file_path: str, prompt: str, iteration: int, prompt_
         print(f"Error in iteration {iteration} - {prompt_type}: {e}")
         return False
 
-async def improve_codebase(file_path: str, iterations: int, auto_mode: bool):
-    """Iteratively improve the codebase using different prompts."""
-    if not os.path.exists(file_path):
-        print(f"Error: File {file_path} not found!")
-        return
+async def improve_codebase(files_config: Dict[str, List[str]], iterations: int, auto_mode: bool):
+    """Iteratively improve the codebase using requirements-focused prompt."""
+    print(f"Starting iterative improvement for {iterations} iterations...")
+    print(f"Read-only files: {', '.join(files_config.get('read_only', []))}")
+    print(f"Project files: {', '.join(files_config.get('project_files', []))}")
     
-    print(f"Starting iterative improvement of {file_path} for {iterations} iterations...")
-    
-    results: Dict[int, Dict[str, bool]] = {}
-    prompt_types = list(PROMPTS.keys())
+    results: Dict[int, bool] = {}
     
     for iteration in range(1, iterations + 1):
         print(f"\nIteration {iteration}/{iterations}")
-                
-        results[iteration] = {}
         
-        # Get the prompt type for this iteration by cycling through them
-        prompt_type = prompt_types[(iteration - 1) % len(prompt_types)]
-        prompt = PROMPTS[prompt_type]
-        
-        success = await run_aider_command(file_path, prompt, iteration, prompt_type)
-        results[iteration][prompt_type] = success
+        success = await run_aider_command(files_config, PROMPT, iteration, "requirements")
+        results[iteration] = success
         
         # Delay between iterations
         await asyncio.sleep(2)
         
         if not auto_mode:
-            response = input("Continue with this iteration? (y/n): ").lower()
+            response = input("Continue with next iteration? (y/n): ").lower()
             if response != 'y':
                 print("Stopping iterations as requested.")
                 break
     
     # Print summary
     print("\nExecution Summary:")
-    for iteration, result in results.items():
-        print(f"\nIteration {iteration}:")
-        for prompt_type, success in result.items():
-            status = "Success" if success else "Failed"
-            print(f"  {prompt_type}: {status}")
+    for iteration, success in results.items():
+        status = "Success" if success else "Failed"
+        print(f"Iteration {iteration}: {status}")
 
 def main():
     parser = argparse.ArgumentParser(description='Iteratively improve code using AI suggestions.')
-    parser.add_argument('file_path', help='Path to the file to improve')
+    parser.add_argument('files_json', help='Path to JSON file containing file configurations')
     parser.add_argument('iterations', type=int, help='Number of improvement iterations')
     parser.add_argument('--auto', '-a', action='store_true', default=False,
                       help='Run automatically without confirmation between iterations')
@@ -133,7 +109,14 @@ def main():
     global args
     args = parser.parse_args()
     
-    asyncio.run(improve_codebase(args.file_path, args.iterations, args.auto))
+    try:
+        with open(args.files_json, 'r') as f:
+            files_config = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError) as e:
+        print(f"Error reading files configuration: {e}")
+        sys.exit(1)
+    
+    asyncio.run(improve_codebase(files_config, args.iterations, args.auto))
 
 if __name__ == "__main__":
     main() 

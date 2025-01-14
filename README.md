@@ -301,6 +301,9 @@ git config --global user.email "quocdat.le.insacvl@gmail.com"
 git config --global user.name "LE Quoc Dat"
 git config --global credential.helper store
 
+apt-get install git-lfs
+git lfs install
+
 git clone https://quocdat-le-insacvl:<token>@github.com/quocdat-le-insacvl/fast-apply-model.git
 
 pip install huggingface_hub 

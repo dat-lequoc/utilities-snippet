@@ -319,6 +319,24 @@ pip install unsloth
 pip uninstall unsloth -y && pip install --upgrade --no-cache-dir "unsloth[colab-new] @ git+https://github.com/unslothai/unsloth.git"
 ```
 
+
+Conda
+```
+mkdir -p ~/miniconda3
+wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh -O ~/miniconda3/miniconda.sh
+bash ~/miniconda3/miniconda.sh -b -u -p ~/miniconda3
+rm ~/miniconda3/miniconda.sh
+source ~/miniconda3/bin/activate
+conda init --all
+
+
+conda create -n "omni" python==3.12 -y
+conda activate omni
+pip install -r requirements.txt
+
+```
+
+
 # Download and save HF model
 ```
 from transformers import AutoModelForCausalLM, AutoTokenizer

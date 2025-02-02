@@ -68,6 +68,12 @@ EXCLUDED_PATTERNS = [
     '*.csv', '*.parquet', '*.txt'
 ]
 
+TREE_EXCLUDE_PATTERNS = [
+    '*.json', '*.pyc', '__pycache__', '*.git*', '*.zip',
+    '*.tar.gz', '*.db', '*.csv', '*.parquet', '*.cache',
+    '*.log', 'node_modules'
+]
+
 def parse_arguments():
     parser = argparse.ArgumentParser(description="Generate code review files")
     parser.add_argument('--base', required=True, help='Base branch or commit')
@@ -93,13 +99,32 @@ def get_base_files(base):
 def is_excluded(filename):
     return any(re.match(pattern.replace('*', '.*'), filename) for pattern in EXCLUDED_PATTERNS)
 
+def get_project_structure():
+    """Get the project structure using tree command while excluding irrelevant files"""
+    exclude_patterns = [f"-I '{pattern}'" for pattern in TREE_EXCLUDE_PATTERNS]
+    exclude_str = ' '.join(exclude_patterns)
+    
+    try:
+        cmd = f"tree -L 3 {exclude_str}"
+        structure = subprocess.check_output(cmd, shell=True, text=True)
+        return structure
+    except subprocess.CalledProcessError:
+        return "Failed to get project structure"
+
 def get_related_files(diff):
+    structure = get_project_structure()
+    
     prompt = f"""
-    Analyze this git diff and list only the filenames that are directly related 
+    Analyze this git diff and project structure to list only the filenames that are directly related 
     or highly coupled with the changes. Consider:
     - Files being modified
     - Files that import/use modified code
-    - Files that provide the context or important of the project
+    - Files that provide the context or importance of the project
+    
+    Project structure:
+    <structure>
+    {structure}
+    </structure>
     
     Respond in this format:
     <files>

@@ -26,8 +26,8 @@ def extract_and_write_code_blocks(full_text):
     # re.DOTALL allows . to match newline characters for the content block
     # re.MULTILINE allows ^ to match at the beginning of each line
     # The first capturing group (\w*) is for the optional language specifier.
-    # (?:#|//) matches either # or // for the file path line.
-    pattern = re.compile(r"^\s*```(\w*)\s*\n^\s*(?:#|//)\s*(.*?)\s*\n(.*?)\n^\s*```\s*$", re.DOTALL | re.MULTILINE)
+    # (?:#|//|--) matches #, //, or -- for the file path line.
+    pattern = re.compile(r"^\s*```(\w*)\s*\n^\s*(?:#|//|--)\s*(.*?)\s*\n(.*?)\n^\s*```\s*$", re.DOTALL | re.MULTILINE)
     
     matches = pattern.findall(full_text)
     

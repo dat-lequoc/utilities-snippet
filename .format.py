@@ -1,5 +1,6 @@
 import subprocess
 import re
+import shlex
 import pyperclip
 import argparse
 import tiktoken
@@ -58,9 +59,12 @@ def parse_arguments():
     parser.add_argument('--exclude', nargs='+', default=[
         '.log', '.xml', '.gitignore', '.env', '.json', 'archives', 'data', '.DS_Store',
         '.aider*', '*git*', '.ipynb', '__pycache__', '*cache', '.db', '.swp', '.zip', 'repo', '__init__.py', '.venv',
-        '.jsonl', '.parquet', '.safetensors', '.csv'
+        '.jsonl', '.parquet', '.safetensors', '.csv', '*.mp4', '*.svg',
+        '.env.example', '*.lock', '.env.local'  # Added .env.local
         ], help='List of files or extensions to exclude')
-    parser.add_argument('--exclude-folders', nargs='+', default=[], help='List of folders to exclude when using recursive option')
+    parser.add_argument('--exclude-folders', nargs='+', default=[
+        "node_modules", ".next", ".prompts", ".vscode", ".github", "__pycache__", "tests"  # Added tests
+        ], help='List of folders to exclude when using recursive option')
     parser.add_argument('-s', '--structure', type=int, nargs='?', const=2, metavar='DEPTH', help='Include project structure with specified depth')
     parser.add_argument('--on', action='store_true', help='Do not use XML comments for files in code-files section when initializing')
     parser.add_argument('-a', '--archive', nargs='?', const='', help='Save a copy to prompts/prompt.date_time[_note].xml. Optionally add a note.')
@@ -81,13 +85,23 @@ if args.init is not None:
 
     def should_exclude(item, is_dir=False):
         if is_dir:
+            # Check if the item exactly matches any excluded folder name
             return item == '.git' or any(folder == item for folder in args.exclude_folders)
+        
+        # Check file exclusion patterns
         return any(
-            (exclude.startswith('.') and item.endswith(exclude)) or
+            # Exact match for hidden files/folders starting with '.'
+            (exclude.startswith('.') and not exclude.startswith('*') and item == exclude) or
+            # Ends with pattern (e.g., '.log')
+            (exclude.startswith('.') and not exclude.startswith('*') and item.endswith(exclude)) or
+            # Contains pattern (e.g., '*git*')
             (exclude.startswith('*') and exclude.endswith('*') and exclude[1:-1] in item) or
-            (exclude.startswith('*') and exclude[1:] in item) or
+            # Ends with pattern (e.g., '*.lock')
+            (exclude.startswith('*') and not exclude.endswith('*') and item.endswith(exclude[1:])) or
+            # Exact match for non-hidden files/folders
             (not exclude.startswith('*') and not exclude.startswith('.') and exclude == item) or
-            '__init__.py' in item
+            # Special case for __init__.py
+            '__init__.py' == item
             for exclude in args.exclude
         )
 
@@ -109,29 +123,40 @@ if args.init is not None:
                 # First yield the current directory if it's not the root
                 if root != directory:
                     relative_dir = os.path.relpath(root, directory)
-                    if not should_exclude(relative_dir, is_dir=True) and not is_ignored(relative_dir) and not any(pattern in relative_dir for pattern in args.exclude):
+                    # Check if any part of the path matches an excluded folder name
+                    if not any(part == folder for part in relative_dir.split(os.sep) for folder in args.exclude_folders) and \
+                       not should_exclude(os.path.basename(relative_dir), is_dir=True) and \
+                       not is_ignored(relative_dir):
                         yield f"{relative_dir}/"
 
-                dirs[:] = [d for d in dirs if not should_exclude(d, is_dir=True) and not is_ignored(os.path.join(root, d)) and not any(pattern in d for pattern in args.exclude)]
+                # Filter directories based on exclude_folders and should_exclude
+                dirs[:] = [d for d in dirs if not any(part == folder for part in os.path.relpath(os.path.join(root, d), directory).split(os.sep) for folder in args.exclude_folders) and \
+                                            not should_exclude(d, is_dir=True) and \
+                                            not is_ignored(os.path.join(root, d))]
+                
                 for file in files:
                     full_path = os.path.join(root, file)
                     relative_path = os.path.relpath(full_path, directory)
-                    if not should_exclude(relative_path) and not is_ignored(relative_path):
+                    # Check if any part of the path matches an excluded folder name
+                    if not any(part == folder for part in relative_path.split(os.sep) for folder in args.exclude_folders) and \
+                       not should_exclude(relative_path) and \
+                       not is_ignored(relative_path):
                         yield relative_path
         else:
-            # First yield directories
+            # Non-recursive listing
             dirs = []
             files = []
             for item in os.listdir(directory):
                 full_path = os.path.join(directory, item)
                 is_dir = os.path.isdir(full_path)
-                if not should_exclude(item, is_dir) and not is_ignored(item) and not any(pattern in item for pattern in args.exclude):
+                # Use should_exclude for both files and directories
+                if not should_exclude(item, is_dir=is_dir) and not is_ignored(item):
                     if is_dir:
                         dirs.append(f"{item}/")
                     else:
                         files.append(item)
             
-            # Yield directories first, then files
+            # Yield directories first, then files (already sorted)
             for d in sorted(dirs):
                 yield d
             for f in sorted(files):
@@ -400,17 +425,27 @@ def process_tag(match):
                 filtered_lines.append(line)
         
         # Add excluded paths to command if it's files-to-prompt
-        if 'files-to-prompt' in filtered_lines[0]:
-            # Extract just filenames from paths for ignore flags
-            excluded_args = ' '.join(f'--ignore {os.path.basename(path)}' for path in excluded_paths)
-            command_cleaned = ' '.join(filtered_lines) + ' ' + excluded_args
-        else:
-            command_cleaned = ' '.join(filtered_lines)
+        command_parts = filtered_lines[0].split()
+        base_command = command_parts[0] # e.g., 'files-to-prompt'
+        options = [part for part in command_parts[1:] if part.startswith('--')] # e.g., ['--cxml']
+        files = [part for part in command_parts[1:] if not part.startswith('--')] # Initial files from the command line itself
         
-        print(f"Processing <{tag}> with command: {command_cleaned}")
+        # Add files listed on subsequent lines
+        files.extend(filtered_lines[1:])
+        
+        # Quote file paths and excluded paths properly for the shell
+        quoted_files = [shlex.quote(f) for f in files]
+        quoted_excluded_args = [f'--ignore {shlex.quote(os.path.basename(path))}' for path in excluded_paths]
+
+        # Reconstruct the command
+        command_to_run = [base_command] + options + quoted_files + quoted_excluded_args
+        command_string = ' '.join(command_to_run)
+
+        print(f"Processing <{tag}> with command: {command_string}")
         
         try:
-            result = subprocess.check_output(command_cleaned, shell=True, text=True)
+            # Use the properly quoted command string
+            result = subprocess.check_output(command_string, shell=True, text=True)
             result = result.rstrip()
         except subprocess.CalledProcessError as e:
             print(f"Error running command in <{tag}>: {e}")

@@ -41,6 +41,7 @@ def extract_and_write_code_blocks(full_text):
     # It's not used in the current logic but is parsed correctly.
     for lang, filepath, content in matches:
         filepath = filepath.strip() # Remove any leading/trailing whitespace from path
+        filepath = filepath.replace("\\", "/") # Normalize path separators
         # content = textwrap.dedent(content) # Dedent the content block <-- Removed this line
         # content = content.strip()   # Remove leading/trailing whitespace/newlines from content
         

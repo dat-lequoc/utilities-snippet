@@ -3,6 +3,26 @@ import re
 import sys
 import os
 import textwrap
+import argparse
+
+def get_clipboard_content():
+    """Get content from system clipboard."""
+    try:
+        import tkinter as tk
+        root = tk.Tk()
+        root.withdraw()  # Hide the window
+        clipboard_content = root.clipboard_get()
+        root.destroy()
+        return clipboard_content
+    except ImportError:
+        print("Error: tkinter not available. Cannot access clipboard.")
+        sys.exit(1)
+    except tk.TclError:
+        print("Error: No content in clipboard or unable to access clipboard.")
+        sys.exit(1)
+    except Exception as e:
+        print(f"Error accessing clipboard: {e}")
+        sys.exit(1)
 
 def extract_and_write_code_blocks(full_text):
     """
@@ -52,7 +72,7 @@ def extract_and_write_code_blocks(full_text):
             continue
 
         filepath = filepath.replace("\\", "/")  # Normalize path separators
-        print(f"  Processing: {filepath}")
+        # print(f"  Processing: {filepath}")
 
         try:
             # Ensure the directory exists
@@ -71,15 +91,34 @@ def extract_and_write_code_blocks(full_text):
             print(f"    An unexpected error occurred with {filepath}: {e}")
 
 def main():
-    print("Paste your text containing code blocks.")
-    print("Press Ctrl+D (Linux/macOS) or Ctrl+Z then Enter (Windows) to finish input.")
-    print("-------------------------------------------------------------------------")
+    parser = argparse.ArgumentParser(
+        description="Extract code blocks from text and write them to files."
+    )
+    parser.add_argument(
+        "-c", "--clipboard",
+        action="store_true",
+        help="Read input from clipboard instead of stdin"
+    )
+    
+    args = parser.parse_args()
+    
+    if args.clipboard:
+        print("Reading from clipboard...")
+        try:
+            full_input_text = get_clipboard_content()
+            print("Clipboard content retrieved successfully.")
+        except SystemExit:
+            return
+    else:
+        print("Paste your text containing code blocks.")
+        print("Press Ctrl+D (Linux/macOS) or Ctrl+Z then Enter (Windows) to finish input.")
+        print("-------------------------------------------------------------------------")
 
-    try:
-        full_input_text = sys.stdin.read()
-    except KeyboardInterrupt:
-        print("\nInput interrupted by user (Ctrl+C). Exiting.")
-        sys.exit(1)
+        try:
+            full_input_text = sys.stdin.read()
+        except KeyboardInterrupt:
+            print("\nInput interrupted by user (Ctrl+C). Exiting.")
+            sys.exit(1)
 
     if not full_input_text.strip():
         print("No input received. Exiting.")

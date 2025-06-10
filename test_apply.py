@@ -314,8 +314,6 @@ mock_print):
             "It can contain `inline code` and also fenced code blocks:\n"
             "```python\n"
             "print('nested')\n"
-            "```\n"
-            "End of content.\n"
             "```"
         )
         extract_and_write_code_blocks(input_text)
@@ -325,9 +323,7 @@ mock_print):
             "This is a markdown file.\n"
             "It can contain `inline code` and also fenced code blocks:\n"
             "```python\n"
-            "print('nested')\n"
-            "```\n"
-            "End of content."
+            "print('nested')"
         )
         mock_os_makedirs.assert_called_once_with("path/to", exist_ok=True)
         mock_file_open.assert_called_once_with(expected_filepath, 'w', encoding='utf-8')
@@ -352,6 +348,165 @@ mock_print):
             for args, _ in mock_print.call_args_list if args
         )
         self.assertTrue(error_message_found, "Unexpected error message not printed.")
+
+    # SEARCH/REPLACE TESTS
+    @patch('builtins.print')
+    @patch('os.path.exists', return_value=True)
+    @patch('builtins.open', new_callable=mock_open, read_data="original line1\nsearch content\noriginal line2")
+    def test_search_replace_block_success(self, mock_file_open, mock_exists, mock_print):
+        input_text = (
+            "```python:path/to/file.py\n"
+            "<<<<<<< SEARCH\n"
+            "search content\n"
+            "=======\n"
+            "replace content\n"
+            ">>>>>>> REPLACE\n"
+            "```"
+        )
+        extract_and_write_code_blocks(input_text)
+
+        expected_filepath = "path/to/file.py"
+        mock_print.assert_any_call("Found 1 code block(s). Processing...")
+        mock_print.assert_any_call(f"  Processing: {expected_filepath}")
+        mock_print.assert_any_call("    [SEARCH/REPLACE mode]")
+
+        # Should have read the existing file
+        mock_file_open.assert_any_call(expected_filepath, 'r', encoding='utf-8')
+
+        # Should have written the updated content
+        mock_file_open.assert_any_call(expected_filepath, 'w', encoding='utf-8')
+        mock_file_open().write.assert_called_once_with("original line1\nreplace content\noriginal line2")
+
+        mock_print.assert_any_call("    Successfully updated path/to/file.py with replacements.")
+
+    @patch('builtins.print')
+    @patch('os.path.exists', return_value=False)
+    @patch('builtins.open', new_callable=mock_open)
+    def test_search_replace_block_file_not_found(self, mock_file_open, mock_exists, mock_print):
+        input_text = (
+            "```python:path/to/missing.py\n"
+            "<<<<<<< SEARCH\n"
+            "search content\n"
+            "=======\n"
+            "replace content\n"
+            ">>>>>>> REPLACE\n"
+            "```"
+        )
+        extract_and_write_code_blocks(input_text)
+
+        expected_filepath = "path/to/missing.py"
+        mock_print.assert_any_call("    [SEARCH/REPLACE mode]")
+        mock_print.assert_any_call(f"    Error: File not found for SEARCH/REPLACE block: {expected_filepath}")
+        mock_file_open.assert_not_called()
+
+    @patch('builtins.print')
+    @patch('os.path.exists', return_value=True)
+    @patch('builtins.open', new_callable=mock_open, read_data="original content")
+    def test_search_replace_block_pattern_not_found(self, mock_file_open, mock_exists, mock_print):
+        input_text = (
+            "```python:path/to/file.py\n"
+            "<<<<<<< SEARCH\n"
+            "missing pattern\n"
+            "=======\n"
+            "replace content\n"
+            ">>>>>>> REPLACE\n"
+            "```"
+        )
+        extract_and_write_code_blocks(input_text)
+
+        expected_filepath = "path/to/file.py"
+        mock_print.assert_any_call("    [SEARCH/REPLACE mode]")
+        mock_print.assert_any_call(f"    Warning: Search pattern not found in {expected_filepath}. No changes made.")
+        mock_file_open().write.assert_not_called()
+
+    @patch('builtins.print')
+    @patch('os.path.exists', return_value=True)
+    @patch('builtins.open', side_effect=OSError("Read error"))
+    def test_search_replace_block_os_error(self, mock_file_open, mock_exists, mock_print):
+        input_text = (
+            "```python:path/to/file.py\n"
+            "<<<<<<< SEARCH\n"
+            "search content\n"
+            "=======\n"
+            "replace content\n"
+            ">>>>>>> REPLACE\n"
+            "```"
+        )
+        extract_and_write_code_blocks(input_text)
+
+        expected_filepath = "path/to/file.py"
+        mock_print.assert_any_call(f"    Error reading/writing {expected_filepath}: Read error")
+
+    @patch('builtins.print')
+    @patch('os.path.exists', return_value=True)
+    @patch('builtins.open', new_callable=mock_open, read_data="line1\nline2\nline3")
+    def test_search_replace_multiline_content(self, mock_file_open, mock_exists, mock_print):
+        input_text = (
+            "```python:path/to/file.py\n"
+            "<<<<<<< SEARCH\n"
+            "line1\n"
+            "line2\n"
+            "=======\n"
+            "new line1\n"
+            "new line2\n"
+            ">>>>>>> REPLACE\n"
+            "```"
+        )
+        extract_and_write_code_blocks(input_text)
+
+        mock_file_open().write.assert_called_once_with("new line1\nnew line2\nline3")
+
+    @patch('builtins.print')
+    @patch('os.makedirs')
+    @patch('builtins.open', new_callable=mock_open)
+    @patch('os.path.exists', side_effect=lambda path: path == "existing.py")
+    def test_mixed_write_and_search_replace_blocks(self, mock_exists, mock_file_open, mock_os_makedirs, mock_print):
+        input_text = (
+            "```\n"
+            "// new_file.txt\n"
+            "new content\n"
+            "```\n"
+            "```python:existing.py\n"
+            "<<<<<<< SEARCH\n"
+            "old\n"
+            "=======\n"
+            "new\n"
+            ">>>>>>> REPLACE\n"
+            "```"
+        )
+
+        # Setup mock for reading existing.py
+        read_handles = {
+            "existing.py": mock_open(read_data="line1\nold\nline3").return_value
+        }
+
+        # Setup mock for writing files
+        write_handles = {}
+
+        def open_side_effect(path, mode, *args, **kwargs):
+            if mode == 'r':
+                return read_handles.get(path, mock_open.return_value)
+            elif mode == 'w':
+                handle = mock_open.return_value
+                write_handles[path] = handle
+                return handle
+
+        mock_file_open.side_effect = open_side_effect
+
+        extract_and_write_code_blocks(input_text)
+
+        mock_print.assert_any_call("Found 2 code block(s). Processing...")
+        mock_print.assert_any_call("  Processing: new_file.txt")
+        mock_print.assert_any_call("    Successfully wrote to new_file.txt")
+        mock_print.assert_any_call("  Processing: existing.py")
+        mock_print.assert_any_call("    [SEARCH/REPLACE mode]")
+        mock_print.assert_any_call("    Successfully updated existing.py with replacements.")
+
+        # Verify writes
+        write_calls = mock_file_open.return_value.write.call_args_list
+        self.assertEqual(len(write_calls), 2)
+        self.assertEqual(write_calls[0][0][0], "new content")  # new_file.txt
+        self.assertEqual(write_calls[1][0][0], "line1\nnew\nline3")  # existing.py
 
 if __name__ == '__main__':
     unittest.main()

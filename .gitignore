@@ -13,3 +13,5 @@
 .env
 *.xml
 **/.prompts/
+
+.cwc/

@@ -13,3 +13,7 @@
 .env
 *.xml
 **/.prompts/
+
+
+# CodeWebChat state and logs (auto-added)
+.cwc/

@@ -71,7 +71,8 @@ if (-not (Get-Command choco -ErrorAction SilentlyContinue)) {
 $packages = @(
     @{Name="Mozilla Firefox"; Package="firefox"}, # [4, 12, 17]
     @{Name="Git"; Package="git.install"}, # [2, 5, 12, 14]
-    @{Name="Visual Studio Code"; Package="vscode"} # [9, 12, 13, 19]
+    @{Name="Visual Studio Code"; Package="vscode"}, # [9, 12, 13, 19]
+    @{Name="Python"; Package="python"}
 )
 
 foreach ($item in $packages) {
@@ -83,6 +84,27 @@ foreach ($item in $packages) {
     }
     catch {
         Write-Host "ERROR: Failed to install $($item.Name). $($_.Exception.Message)" -ForegroundColor Red
+    }
+}
+
+# Install Python packages using pip
+Write-Host "--- Installing Python Packages ---" -ForegroundColor Magenta
+$pip_packages = @(
+    "Flask",
+    "Flask-Cors"
+)
+
+foreach ($pkg in $pip_packages) {
+    Write-Host "Installing Python package: $pkg..." -ForegroundColor Yellow
+    try {
+        # Using 'python -m pip' is more reliable than just 'pip'
+        # It avoids issues where the 'Scripts' directory isn't in the PATH for the current session.
+        python -m pip install $pkg
+        Write-Host "$pkg installed successfully!" -ForegroundColor Green
+    }
+    catch {
+        Write-Host "ERROR: Failed to install Python package '$pkg'. $($_.Exception.Message)" -ForegroundColor Red
+        Write-Host "Please ensure Python and pip are correctly installed and in the system's PATH." -ForegroundColor Red
     }
 }
 

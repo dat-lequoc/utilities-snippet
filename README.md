@@ -458,7 +458,8 @@ docker --version
 sudo systemctl daemon-reload
 sudo systemctl start docker
 
-sudo apt install vim  
+sudo apt install vim -y
+sudo apt install python3-pip -y
 ```
 
 

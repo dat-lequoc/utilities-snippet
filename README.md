@@ -458,6 +458,7 @@ docker --version
 sudo systemctl daemon-reload
 sudo systemctl start docker
 
+sudo apt install vim  
 ```
 
 

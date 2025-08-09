@@ -462,4 +462,122 @@ sudo apt install vim -y
 sudo apt install python3-pip -y
 ```
 
+# setup GH200 :
+```
+#!/usr/bin/env bash
+# Installs Python 3.12, basic build deps, and PyTorch + CUDA wheels (no vLLM).
+# Target: Ubuntu 22.04 with NVIDIA drivers/CUDA runtime already present (GH200-friendly).
+# Usage: bash setup_torch.sh
 
+set -euo pipefail
+
+# Config (override via env)
+: "${PY_VER:=3.12}"
+: "${USE_VENV:=1}"
+: "${VENV_DIR:=venv}"
+# CUDA wheel tag; try cu128 (GH200) first; fall back to cu121 if needed
+: "${TORCH_CUDA_TAG:=cu128}"   # options: cu128, cu121, cpu
+: "${INSTALL_TRITON:=0}"       # 1 to install triton
+: "${INSTALL_FLASHATTN:=0}"    # 1 to try flash-attention (Hopper/GH200)
+: "${TORCH_INDEX:=https://download.pytorch.org/whl}"
+
+if command -v nvidia-smi >/dev/null 2>&1; then
+  echo "NVIDIA detected:"
+  nvidia-smi || true
+else
+  echo "WARNING: NVIDIA drivers/CUDA runtime not detected in PATH. Continuing anyway."
+fi
+
+SUDO=""
+if [ "$(id -u)" -ne 0 ]; then SUDO="sudo"; fi
+
+export DEBIAN_FRONTEND=noninteractive
+
+echo ">> Installing system packages..."
+$SUDO apt-get update -y
+$SUDO apt-get install -y software-properties-common curl git build-essential cmake ninja-build pkg-config libnuma1 git-lfs
+
+if ! command -v python${PY_VER} >/dev/null 2>&1; then
+  echo ">> Installing Python ${PY_VER}..."
+  $SUDO add-apt-repository -y ppa:deadsnakes/ppa
+  $SUDO apt-get update -y
+  $SUDO apt-get install -y python${PY_VER} python${PY_VER}-dev python${PY_VER}-venv
+fi
+
+PY=python${PY_VER}
+
+if ! $PY -m pip --version >/dev/null 2>&1; then
+  echo ">> Installing pip for Python ${PY_VER}..."
+  curl -sS https://bootstrap.pypa.io/get-pip.py -o /tmp/get-pip.py
+  $PY /tmp/get-pip.py
+fi
+
+if [ "${USE_VENV}" = "1" ]; then
+  echo ">> Creating venv at ${VENV_DIR}..."
+  $PY -m venv "${VENV_DIR}"
+  # shellcheck disable=SC1091
+  source "${VENV_DIR}/bin/activate"
+  PY=python
+fi
+
+echo ">> Upgrading base Python packages..."
+$PY -m pip install -U pip setuptools wheel packaging ninja cmake
+
+# Hopper/GH200 arch hint for PyTorch kernels
+export TORCH_CUDA_ARCH_LIST="9.0a"
+
+install_torch() {
+  local tag="${1}"
+  if [ "${tag}" = "cpu" ]; then
+    $PY -m pip install torch torchvision torchaudio --index-url "${TORCH_INDEX}/cpu"
+  else
+    $PY -m pip install torch torchvision torchaudio --index-url "${TORCH_INDEX}/${tag}"
+  fi
+}
+
+set +e
+echo ">> Installing PyTorch (${TORCH_CUDA_TAG})..."
+install_torch "${TORCH_CUDA_TAG}"
+RC=$?
+set -e
+
+if [ $RC -ne 0 ] && [ "${TORCH_CUDA_TAG}" = "cu128" ]; then
+  echo ">> cu128 failed; trying cu121..."
+  install_torch "cu121"
+fi
+
+if [ "${INSTALL_TRITON}" = "1" ]; then
+  echo ">> Installing Triton..."
+  $PY -m pip install triton
+fi
+
+if [ "${INSTALL_FLASHATTN}" = "1" ]; then
+  echo ">> Installing FlashAttention (best-effort)..."
+  set +e
+  $PY -m pip install packaging
+  # Newer FA2 provides wheels for Hopper; fallback to source if needed.
+  $PY -m pip install flash-attn --no-build-isolation || {
+    echo "FlashAttention wheel failed; trying source (best-effort)..."
+    TMPD="$(mktemp -d)"
+    git clone https://github.com/Dao-AILab/flash-attention.git "${TMPD}/flash-attention"
+    pushd "${TMPD}/flash-attention/hopper" >/dev/null
+    $PY setup.py install || true
+    popd >/dev/null
+    rm -rf "${TMPD}"
+  }
+  set -e
+fi
+
+
+echo ">> Verifying PyTorch..."
+$PY - <<'PYCODE'
+import sys, torch
+print("Python:", sys.version)
+print("Torch:", torch.__version__)
+print("CUDA available:", torch.cuda.is_available())
+if torch.cuda.is_available():
+    print("GPU:", torch.cuda.get_device_name(0))
+PYCODE
+
+echo ">> Done."
+```

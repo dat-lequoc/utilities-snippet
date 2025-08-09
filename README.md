@@ -441,7 +441,6 @@ python --version
 python3 --version
 
 curl -LsSf https://astral.sh/uv/install.sh | sh
-source ~/.local/bin/env
 
 sudo apt install snapd      # if not already installed
 sudo snap install --classic code

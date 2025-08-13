@@ -589,4 +589,6 @@ ssh-keygen -R 192.222.x.x && ssh ubuntu@192.222.x.x
 # UV standalone:
 ```
 uv add --script example.py 'requests<3' 'rich'
+uv run example.py
+
 ```

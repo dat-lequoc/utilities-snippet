@@ -580,3 +580,8 @@ PYCODE
 
 echo ">> Done."
 ```
+
+# Connect SSH Vscode / Cursor : 
+```
+ssh-keygen -R 192.222.x.x && ssh ubuntu@192.222.x.x
+```

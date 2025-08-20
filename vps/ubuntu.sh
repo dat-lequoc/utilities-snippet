@@ -23,4 +23,6 @@ sudo update-alternatives --install /usr/bin/python3 python3 /usr/bin/python${PYT
 sudo update-alternatives --set python /usr/bin/python${PYTHON_VER}
 sudo update-alternatives --set python3 /usr/bin/python${PYTHON_VER}
 
+sudo apt install python3-full -y
+
 curl -LsSf https://astral.sh/uv/install.sh | sh

@@ -25,4 +25,8 @@ sudo update-alternatives --set python3 /usr/bin/python${PYTHON_VER}
 
 sudo apt install python3-full -y
 
+git config --global user.name "LE Quoc Dat"
+git config --global user.email "quocdat.le.insacvl@gmail.com"
+git config --global credential.helper store
+
 curl -LsSf https://astral.sh/uv/install.sh | sh

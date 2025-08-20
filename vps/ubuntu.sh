@@ -22,3 +22,5 @@ sudo update-alternatives --install /usr/bin/python3 python3 /usr/bin/python${PYT
 # 6. Select the default automatically
 sudo update-alternatives --set python /usr/bin/python${PYTHON_VER}
 sudo update-alternatives --set python3 /usr/bin/python${PYTHON_VER}
+
+curl -LsSf https://astral.sh/uv/install.sh | sh

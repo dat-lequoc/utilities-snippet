@@ -459,6 +459,8 @@ sudo systemctl start docker
 
 sudo apt install vim -y
 sudo apt install python3-pip -y
+sudo apt remove --purge libnode-dev && sudo apt install nodejs -y
+sudo apt install npm -y
 ```
 
 # setup GH200 :

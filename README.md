@@ -594,3 +594,11 @@ uv add --script example.py 'requests<3' 'rich'
 uv run example.py
 
 ```
+
+# Alias :
+```
+echo "alias kctrl='ps aux | grep \"ctrl-code\" | grep -v grep | awk '\''{print \$2}'\'' | xargs -r kill -9'" >> ~/.zshrc && source ~/.zshrc
+```
+
+
+

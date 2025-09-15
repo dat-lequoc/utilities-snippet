@@ -597,7 +597,8 @@ uv run example.py
 
 # Alias :
 ```
-echo "alias kctrl='ps aux | grep \"ctrl-code\" | grep -v grep | awk '\''{print \$2}'\'' | xargs -r kill -9'" >> ~/.zshrc && source ~/.zshrc
+echo 'alias kctrl="ps aux | grep \"ctrl-code\" | grep -v grep | awk '\''{print \$2}'\'' | xargs -r kill -9"' >> ~/.zshrc && echo 'alias acc="source .venv/bin/activate"' >> ~/.zshrc && source ~/.zshrc
+
 ```
 
 

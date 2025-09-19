@@ -599,7 +599,7 @@ uv run example.py
 ```
 echo 'alias kctrl="ps aux | grep \"ctrl-code\" | grep -v grep | awk '\''{print \$2}'\'' | xargs -r kill -9"' >> ~/.zshrc && echo 'alias acc="source .venv/bin/activate"' >> ~/.zshrc && source ~/.zshrc
 echo 'uvup() { uv venv && source .venv/bin/activate && uv pip install -r "$1"; }' >> ~/.zshrc && source ~/.zshrc
-echo 'runlog() { cmd=$1; shift; nohup $cmd "$@" > ${cmd}.log 2>&1 & tail -F ${cmd}.log; }' >> ~/.zshrc
+echo 'runlog() { cmd=$1; shift; full_cmd="$cmd $*"; log_file="${cmd}.log"; echo "$full_cmd" > "$log_file"; echo "=================" >> "$log_file"; nohup $cmd "$@" >> "$log_file" 2>&1 & tail -F "$log_file"; }' >> ~/.zshrc
 ```
 
 
